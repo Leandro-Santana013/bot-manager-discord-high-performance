@@ -27,8 +27,13 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         return;
     }
 
+    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Defer(
+        CreateInteractionResponseMessage::new().ephemeral(true)
+    )).await;
+
     let data = ctx.data.read().await;
     let pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized").clone();
+    drop(data);
 
     let roles = vec!["god", "ace", "cry", "high", "1st", "2nd", "sub", "base"];
     let mut mensagem = String::from("✅ **Cargos de Metas Atualizados:**\n\n");
@@ -69,7 +74,5 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
     mensagem.push_str("\n*(Obs: Se você não preencheu algum campo agora, mas já tinha preenchido antes, ele continua salvo!)*");
 
-    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
-        CreateInteractionResponseMessage::new().content(mensagem).ephemeral(true)
-    )).await;
+    let _ = interaction.edit_response(&ctx.http, serenity::builder::EditInteractionResponse::new().content(mensagem)).await;
 }
