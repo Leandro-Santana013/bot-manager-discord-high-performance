@@ -89,11 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_url = std::env::var("DATABASE_URL").expect("A variável DATABASE_URL é obrigatória para o PostgreSQL");
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
-        .connect_with(
-            db_url.parse::<sqlx::postgres::PgConnectOptions>()
-                .expect("DATABASE_URL inválida")
-                .statement_cache_capacity(0)
-        )
+        .connect(&db_url)
         .await?;
 
     tracing::info!("Banco de dados PostgreSQL conectado com sucesso.");
