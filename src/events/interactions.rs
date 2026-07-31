@@ -642,8 +642,12 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
         };
 
         if modal.data.custom_id.starts_with("modal_config_suporte_") {
-            use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
+            use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
             use crate::database::tickets::{TicketDb, TicketOption};
+
+            let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(
+                CreateInteractionResponseMessage::new().ephemeral(true)
+            )).await;
 
             let pool = {
                 let data = ctx.data.read().await;
@@ -660,7 +664,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let _ = TicketDb::set_config(&pool, "panel_image", &main_img).await;
 
                 let (embed, comps) = crate::commands::tickets::config_suporte::build_config_suporte_panel(&pool).await;
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::UpdateMessage(CreateInteractionResponseMessage::new().embed(embed).components(comps))).await;
+                if let Some(mut msg) = modal.message.clone() {
+                    let _ = msg.edit(&ctx.http, serenity::builder::EditMessage::new().embed(embed).components(comps)).await;
+                }
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Textos principais atualizados com sucesso!")).await;
 
             } else if modal.data.custom_id == "modal_config_suporte_channels" {
                 let cat_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -671,7 +678,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let _ = TicketDb::set_config(&pool, "ticket_staff_role", &role_id).await;
                 let _ = TicketDb::set_config(&pool, "ticket_logs_channel", &log_id).await;
 
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("✅ Canais e cargos configurados!").ephemeral(true))).await;
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Canais e cargos configurados!")).await;
 
             } else if modal.data.custom_id == "modal_config_suporte_add_opt" {
                 let opt_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() }.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_");
@@ -687,7 +694,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let _ = TicketDb::set_config(&pool, "ticket_options", &new_json).await;
 
                 let (embed, comps) = crate::commands::tickets::config_suporte::build_config_suporte_panel(&pool).await;
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::UpdateMessage(CreateInteractionResponseMessage::new().embed(embed).components(comps))).await;
+                if let Some(mut msg) = modal.message.clone() {
+                    let _ = msg.edit(&ctx.http, serenity::builder::EditMessage::new().embed(embed).components(comps)).await;
+                }
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Opção de suporte adicionada com sucesso!")).await;
 
             } else if modal.data.custom_id.starts_with("modal_config_suporte_edit_opt_") {
                 let opt_id = modal.data.custom_id.strip_prefix("modal_config_suporte_edit_opt_").unwrap().to_string();
@@ -707,11 +717,18 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let _ = TicketDb::set_config(&pool, "ticket_options", &new_json).await;
 
                 let (embed, comps) = crate::commands::tickets::config_suporte::build_config_suporte_panel(&pool).await;
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::UpdateMessage(CreateInteractionResponseMessage::new().embed(embed).components(comps))).await;
+                if let Some(mut msg) = modal.message.clone() {
+                    let _ = msg.edit(&ctx.http, serenity::builder::EditMessage::new().embed(embed).components(comps)).await;
+                }
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Opção de suporte atualizada com sucesso!")).await;
             }
         } else if modal.data.custom_id.starts_with("modal_config_vip_") {
-            use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
+            use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
             use crate::database::vip::VipDb;
+
+            let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(
+                CreateInteractionResponseMessage::new().ephemeral(true)
+            )).await;
 
             if modal.data.custom_id == "modal_config_vip_main" {
                 let main_desc = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -720,9 +737,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 VipDb::set_main_text(&pool, &main_desc, &main_img).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
                 
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new().content("✅ Textos do Painel VIP atualizados com sucesso!").ephemeral(true)
-                )).await;
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Textos do Painel VIP atualizados com sucesso!")).await;
             } else if modal.data.custom_id == "modal_config_vip_add_block" {
                 let block_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() }.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_");
                 let title = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -732,9 +747,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 VipDb::save_extra_block(&pool, block_id, title, desc, color).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
                 
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new().content("✅ Bloco Extra adicionado com sucesso!").ephemeral(true)
-                )).await;
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Bloco Extra adicionado com sucesso!")).await;
             } else if modal.data.custom_id == "modal_config_vip_add_prod" {
                 let prod_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() }.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_");
                 let label = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -744,9 +757,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 VipDb::save_product(&pool, prod_id, label, price, role_id).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
                 
-                let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new().content("✅ Produto VIP adicionado com sucesso!").ephemeral(true)
-                )).await;
+                let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Produto VIP adicionado com sucesso!")).await;
             } else if modal.data.custom_id.starts_with("modal_config_vip_edit_block_") {
                 let opt_id = modal.data.custom_id.strip_prefix("modal_config_vip_edit_block_").unwrap();
                 let title = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -757,15 +768,11 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 if action.eq_ignore_ascii_case("EXCLUIR") {
                     VipDb::delete_extra_block(&pool, opt_id).await;
                     crate::commands::vip::painelvip::update_panel(&ctx).await;
-                    let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content("✅ Bloco Extra excluído com sucesso!").ephemeral(true)
-                    )).await;
+                    let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Bloco Extra excluído com sucesso!")).await;
                 } else {
                     VipDb::save_extra_block(&pool, opt_id.to_string(), title, desc, color).await;
                     crate::commands::vip::painelvip::update_panel(&ctx).await;
-                    let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content("✅ Bloco Extra atualizado com sucesso!").ephemeral(true)
-                    )).await;
+                    let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Bloco Extra atualizado com sucesso!")).await;
                 }
             } else if modal.data.custom_id.starts_with("modal_config_vip_edit_prod_") {
                 let opt_id = modal.data.custom_id.strip_prefix("modal_config_vip_edit_prod_").unwrap();
@@ -777,15 +784,11 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 if action.eq_ignore_ascii_case("EXCLUIR") {
                     VipDb::delete_product(&pool, opt_id).await;
                     crate::commands::vip::painelvip::update_panel(&ctx).await;
-                    let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content("✅ Produto VIP excluído com sucesso!").ephemeral(true)
-                    )).await;
+                    let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Produto VIP excluído com sucesso!")).await;
                 } else {
                     VipDb::save_product(&pool, opt_id.to_string(), label, price, role_id).await;
                     crate::commands::vip::painelvip::update_panel(&ctx).await;
-                    let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content("✅ Produto VIP atualizado com sucesso!").ephemeral(true)
-                    )).await;
+                    let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Produto VIP atualizado com sucesso!")).await;
                 }
             }
         } else if modal.data.custom_id.starts_with("modal_vip_") {
