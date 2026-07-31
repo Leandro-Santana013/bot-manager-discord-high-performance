@@ -33,5 +33,45 @@ pub async fn handle(ctx: Context, ready: Ready) {
     }
     
     // Iniciar Cron Jobs
-    crate::cron::start_crons(std::sync::Arc::new(ctx)).await;
+    crate::cron::start_crons(std::sync::Arc::new(ctx.clone())).await;
+
+    // Recupera pessoas que já estavam em call antes do bot reiniciar
+    let ctx_clone = ctx.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await; // Aguarda cache carregar
+        let data = ctx_clone.data.read().await;
+        if let Some(tracker) = data.get::<crate::events::voice::VoiceTracker>() {
+            let mut users_in_voice = Vec::new();
+            {
+                let guilds = ctx_clone.cache.guilds();
+                for guild_id in guilds {
+                    if let Some(guild) = ctx_clone.cache.guild(guild_id) {
+                        for (user_id, voice_state) in guild.voice_states.iter() {
+                            let is_bot = voice_state.member.as_ref().map(|m| m.user.bot).unwrap_or(false);
+                            if !is_bot {
+                                let is_muted = voice_state.self_mute || voice_state.mute || voice_state.self_deaf || voice_state.deaf;
+                                users_in_voice.push((*user_id, is_muted));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            let mut recovered = 0;
+            for (user_id, is_muted) in users_in_voice {
+                let uid_str = user_id.to_string();
+                if !tracker.contains_key(&uid_str) {
+                    tracker.insert(uid_str.clone(), crate::events::voice::VoiceJoin {
+                        joined_at: chrono::Utc::now().timestamp_millis(),
+                        last_mute_at: if is_muted { Some(chrono::Utc::now().timestamp_millis()) } else { None },
+                        total_muted: 0,
+                    });
+                    recovered += 1;
+                }
+            }
+            if recovered > 0 {
+                tracing::info!("Rastreador recuperou o tempo de call de {} usuário(s) ativos!", recovered);
+            }
+        }
+    });
 }
