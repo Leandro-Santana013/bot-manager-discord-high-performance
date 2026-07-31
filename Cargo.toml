@@ -1,0 +1,31 @@
+[package]
+name = "bot-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.37.0", features = ["rt", "macros", "net", "time", "sync", "io-util"] }
+serenity = { version = "0.12.2", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "collector", "cache"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono"] }
+reqwest = { version = "0.12", features = ["json"] }
+image = "0.24.0"
+imageproc = "0.23.0"
+rusttype = "0.9.3"
+chrono = "0.4.38"
+dotenvy = "0.15.7"
+mimalloc = "0.1"
+dashmap = "5.5"
+axum = "0.7.5"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.24.0", features = ["v4"] }
+base64 = "0.23.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
