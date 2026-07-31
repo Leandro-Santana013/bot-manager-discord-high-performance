@@ -8,6 +8,13 @@ use rusttype::{Font, Scale};
 pub fn register() -> CreateCommand {
     CreateCommand::new("tempo")
         .description("Gera um card super avançado mostrando seu tempo de call")
+        .add_option(
+            serenity::builder::CreateCommandOption::new(
+                serenity::model::application::CommandOptionType::User,
+                "membro",
+                "Membro para ver o tempo"
+            ).required(false)
+        )
 }
 
 fn hex_to_rgba(hex: &str) -> Rgba<u8> {
@@ -152,7 +159,18 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         CreateInteractionResponseMessage::new().ephemeral(true)
     )).await;
 
-    let user_id_str = interaction.user.id.to_string();
+    let mut target_user = interaction.user.clone();
+    for opt in &interaction.data.options {
+        if opt.name == "membro" {
+            if let serenity::model::application::CommandDataOptionValue::User(user_id) = opt.value {
+                if let Some(user) = interaction.data.resolved.users.get(&user_id) {
+                    target_user = user.clone();
+                }
+            }
+        }
+    }
+    
+    let user_id_str = target_user.id.to_string();
 
     // 1. Fetch DB Stats & Live Stats
     let mut stats = {
@@ -196,7 +214,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let avatar_x: i32 = 40;
     let avatar_y: i32 = 80;
 
-    let avatar_url = interaction.user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".to_string());
+    let avatar_url = target_user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".to_string());
     
     let req_client = {
         let data = ctx.data.read().await;
@@ -233,7 +251,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let username_x = avatar_x + avatar_size + 20;
     let username_y = avatar_y + 15;
     
-    draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &interaction.user.name);
+    draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &target_user.name);
     draw_text_mut(&mut image, hex_to_rgba("#999999"), username_x, username_y + 45, Scale::uniform(20.0), &font_bold, &format!("Tempo total: {}", ms_to_time(stats.total_ms)));
     
     let rank_text = format!("Rank Atual: #{}", stats.rank);
@@ -332,7 +350,8 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 }
 
 pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message) {
-    let user_id_str = msg.author.id.to_string();
+    let target_user = msg.mentions.first().unwrap_or(&msg.author).clone();
+    let user_id_str = target_user.id.to_string();
 
     let mut stats = {
         let data = ctx.data.read().await;
@@ -375,7 +394,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let avatar_x: i32 = 40;
     let avatar_y: i32 = 80;
 
-    let avatar_url = msg.author.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".to_string());
+    let avatar_url = target_user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".to_string());
     if let Ok(resp) = reqwest::get(&avatar_url).await {
         if let Ok(bytes) = resp.bytes().await {
             if let Ok(img) = image::load_from_memory(&bytes) {
@@ -400,7 +419,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let username_x = avatar_x + avatar_size + 20;
     let username_y = avatar_y + 15;
     
-    draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &msg.author.name);
+    draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &target_user.name);
     draw_text_mut(&mut image, hex_to_rgba("#999999"), username_x, username_y + 45, Scale::uniform(20.0), &font_bold, &format!("Tempo total: {}", ms_to_time(stats.total_ms)));
     
     let rank_text = format!("Rank Atual: #{}", stats.rank);
