@@ -75,6 +75,16 @@ impl serenity::prelude::TypeMapKey for HttpClient {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
     
+    // Inicia o servidor web na mesma hora pra satisfazer o Render (Port Scanner) IMEDIATAMENTE
+    let port = std::env::var("PORT").unwrap_or_else(|_| "10000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    tracing::info!("Ligando servidor Anti-Sleep em {}...", addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    tokio::spawn(async move {
+        let app = axum::Router::new().route("/", axum::routing::get(|| async { "O bot está online! 🦀" }));
+        let _ = axum::serve(listener, app).await;
+    });
+
     // Carrega .env
     dotenvy::dotenv().ok();
     
@@ -105,11 +115,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw_list = crate::database::tickets::TicketDb::get_config(&pool, "automod_words", "[]").await;
     let automod_words: Vec<String> = serde_json::from_str(&raw_list).unwrap_or_default();
     let automod_cache = Arc::new(RwLock::new(automod_words));
-
-    // Inicia o mini-servidor web (Axum) para Anti-Sleep do Render
-    tokio::spawn(async {
-        server::start_server().await;
-    });
 
     let blacklist_notify = Arc::new(tokio::sync::Notify::new());
     let http_client = reqwest::Client::new();
