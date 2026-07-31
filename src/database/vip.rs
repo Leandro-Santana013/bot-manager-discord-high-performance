@@ -80,7 +80,7 @@ impl VipDb {
         if let Some(pos) = blocks.iter().position(|b| b.id == id) {
             blocks[pos] = data;
         } else {
-            blocks.push(data);
+            blocks.insert(0, data);
         }
         
         let json = serde_json::to_string(&blocks).unwrap_or_else(|_| "[]".to_string());
