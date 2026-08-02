@@ -49,6 +49,25 @@ impl VoiceDb {
         let _ = sqlx::query("ALTER TABLE sessoes_voz ADD COLUMN IF NOT EXISTS tempo_mutado BIGINT DEFAULT 0").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo TYPE BIGINT").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo_mutado TYPE BIGINT").execute(pool).await;
+
+        // Sincroniza o tempo_total de todos os usuários a partir da soma de sessoes_voz
+        Self::sync_all_users(pool).await;
+    }
+
+    pub async fn sync_all_users(pool: &PgPool) {
+        let sync_query = "
+            INSERT INTO usuarios (id_usuario, tempo_total)
+            SELECT id_usuario, CAST(COALESCE(SUM(tempo), 0) AS BIGINT)
+            FROM sessoes_voz
+            GROUP BY id_usuario
+            ON CONFLICT (id_usuario) DO UPDATE
+            SET tempo_total = EXCLUDED.tempo_total;
+        ";
+        if let Err(e) = sqlx::query(sync_query).execute(pool).await {
+            error!("Erro ao sincronizar tempo dos usuários: {}", e);
+        } else {
+            info!("Sincronização de tempo de todos os usuários realizada com sucesso a partir de sessoes_voz!");
+        }
     }
 
     pub async fn update_user_time(pool: &PgPool, user_id: &str, time_spent: i64, mute_time_spent: i64) -> Result<(), sqlx::Error> {
