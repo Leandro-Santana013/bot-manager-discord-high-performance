@@ -1,6 +1,7 @@
 use serenity::builder::{CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage, CreateAttachment};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
+use tracing::{info, error};
 use crate::database::voice::VoiceDb;
 use crate::database::tickets::TicketDb;
 
@@ -10,28 +11,25 @@ pub fn register() -> CreateCommand {
         .default_member_permissions(Permissions::ADMINISTRATOR)
 }
 
-pub async fn run(ctx: &Context, interaction: &serenity::model::application::CommandInteraction) {
-    if !interaction.member.as_ref().map(|m| m.permissions.unwrap_or(Permissions::empty()).administrator()).unwrap_or(false) {
-        let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
-            CreateInteractionResponseMessage::new().content("❌ Apenas administradores podem fechar as metas.").ephemeral(true)
-        )).await;
-        return;
-    }
+pub struct MetaConfig {
+    pub nome: &'static str,
+    pub horas_para_manter: f64,
+    pub id: String,
+}
 
-    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Defer(
-        CreateInteractionResponseMessage::new().ephemeral(false)
-    )).await;
-
-    let data = ctx.data.read().await;
-    let pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized").clone();
+pub async fn execute_closing_for_guild(ctx: &Context, guild_id: GuildId) -> String {
+    let pool = {
+        let data = ctx.data.read().await;
+        match data.get::<crate::DatabasePool>().cloned() {
+            Some(p) => p,
+            None => {
+                error!("DatabasePool ausente durante fechamento de metas!");
+                return "❌ Erro interno: Banco de dados indisponível.".to_string();
+            }
+        }
+    };
 
     let relatorio = VoiceDb::get_all_users_closing_stats(&pool).await;
-
-    struct MetaConfig {
-        nome: &'static str,
-        horas_para_manter: f64,
-        id: String,
-    }
 
     let mut metas = vec![
         MetaConfig { nome: "god", horas_para_manter: 50.0, id: TicketDb::get_config(&pool, "meta_role_god", "").await },
@@ -49,8 +47,6 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let mut zerados = 0;
     let mut rebaixados = 0;
     let mut mantidos = 0;
-
-    let guild_id = interaction.guild_id.unwrap();
 
     for stats in relatorio {
         if let Ok(user_id) = stats.id_usuario.parse::<u64>() {
@@ -94,7 +90,30 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     }
 
     texto_relatorio.push_str(&format!("\n\n=== RESUMO ===\nInativos Zerados: {}\nRebaixados: {}\nMantiveram a patente: {}\n", zerados, rebaixados, mantidos));
+    info!("[Fechamento] Concluído para guild {}: {} zerados, {} rebaixados, {} mantidos", guild_id, zerados, rebaixados, mantidos);
+    texto_relatorio
+}
 
+pub async fn run(ctx: &Context, interaction: &serenity::model::application::CommandInteraction) {
+    if !interaction.member.as_ref().map(|m| m.permissions.unwrap_or(Permissions::empty()).administrator()).unwrap_or(false) {
+        let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+            CreateInteractionResponseMessage::new().content("❌ Apenas administradores podem fechar as metas.").ephemeral(true)
+        )).await;
+        return;
+    }
+
+    let Some(guild_id) = interaction.guild_id else {
+        let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+            CreateInteractionResponseMessage::new().content("❌ Este comando deve ser executado em um servidor.").ephemeral(true)
+        )).await;
+        return;
+    };
+
+    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Defer(
+        CreateInteractionResponseMessage::new().ephemeral(false)
+    )).await;
+
+    let texto_relatorio = execute_closing_for_guild(ctx, guild_id).await;
     let attachment = CreateAttachment::bytes(texto_relatorio.into_bytes(), "relatorio_metas.txt");
 
     let _ = interaction.edit_response(&ctx.http, serenity::builder::EditInteractionResponse::new()

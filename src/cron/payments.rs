@@ -42,29 +42,40 @@ pub async fn start(ctx: Arc<Context>) {
                     if status == "approved" {
                         info!("Pagamento aprovado: {} para usuário {}", payment_id, user_id_str);
 
-                        let _ = PaymentDb::remove_payment(&pool, &payment_id).await;
+                        let mut delivered = false;
 
                         if let Ok(user_id) = user_id_str.parse::<u64>() {
                             let role_id_str = prods.iter().find(|p| p.id == package_id).map(|p| p.role_id.clone()).unwrap_or_default();
                             if let Ok(role_id) = role_id_str.parse::<u64>() {
-
                                 let guilds = ctx.cache.guilds();
                                 for guild_id in guilds {
                                     let http = ctx.http.clone();
                                     if let Ok(member) = guild_id.member(&http, user_id).await {
-                                        let _ = member.add_role(&http, role_id).await;
-
-                                        if let Ok(user) = serenity::model::id::UserId::new(user_id).to_user(&http).await {
-                                            let embed = serenity::builder::CreateEmbed::new()
-                                                .title("✅ Pagamento Aprovado!")
-                                                .description(format!("O seu pacote VIP **{}** foi ativado e o cargo já foi entregue no servidor!", package_id.replace("vip_", "").to_uppercase()))
-                                                .color(0x2ecc71);
-                                            let _ = user.direct_message(&http, serenity::builder::CreateMessage::new().embed(embed)).await;
+                                        match member.add_role(&http, role_id).await {
+                                            Ok(_) => {
+                                                delivered = true;
+                                                if let Ok(user) = serenity::model::id::UserId::new(user_id).to_user(&http).await {
+                                                    let embed = serenity::builder::CreateEmbed::new()
+                                                        .title("✅ Pagamento Aprovado!")
+                                                        .description(format!("O seu pacote VIP **{}** foi ativado e o cargo já foi entregue no servidor!", package_id.replace("vip_", "").to_uppercase()))
+                                                        .color(0x2ecc71);
+                                                    let _ = user.direct_message(&http, serenity::builder::CreateMessage::new().embed(embed)).await;
+                                                }
+                                                break;
+                                            }
+                                            Err(e) => {
+                                                error!("Erro ao adicionar cargo VIP {} ao membro {}: {}", role_id, user_id, e);
+                                            }
                                         }
-                                        break;
                                     }
                                 }
                             }
+                        }
+
+                        if delivered {
+                            let _ = PaymentDb::remove_payment(&pool, &payment_id).await;
+                        } else {
+                            error!("Pagamento {} aprovado, mas não foi possível entregar o cargo no momento. Mantendo para retry.", payment_id);
                         }
                     } else if status == "cancelled" || status == "rejected" {
                         let _ = PaymentDb::remove_payment(&pool, &payment_id).await;

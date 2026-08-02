@@ -82,7 +82,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 return;
             }
 
-            let target_user_id_str = component.data.custom_id.strip_prefix("menu_selecionar_cargo_").unwrap();
+            let Some(target_user_id_str) = component.data.custom_id.strip_prefix("menu_selecionar_cargo_") else { return; };
             let target_user_id: u64 = target_user_id_str.parse().unwrap_or(0);
 
             let selected_roles = match &component.data.kind {
@@ -178,24 +178,32 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::model::channel::{ChannelType, PermissionOverwrite, PermissionOverwriteType};
             use serenity::model::Permissions;
 
-            let tipo_ticket = component.data.custom_id.strip_prefix("abrir_ticket_").unwrap().to_uppercase();
+            let Some(tipo_ticket) = component.data.custom_id.strip_prefix("abrir_ticket_").map(|s| s.to_uppercase()) else { return; };
 
             let _ = component.create_response(&ctx.http, CreateInteractionResponse::Defer(
                 CreateInteractionResponseMessage::new().ephemeral(true)
             )).await;
 
-            let guild_id = component.guild_id.unwrap();
+            let Some(guild_id) = component.guild_id else { return; };
             let user_id = component.user.id;
-            let db_pool = {
+            let Some(db_pool) = ({
                 let data = ctx.data.read().await;
-                data.get::<crate::DatabasePool>().unwrap().clone()
-            };
+                data.get::<crate::DatabasePool>().cloned()
+            }) else { return; };
             let conf_cat = crate::database::tickets::TicketDb::get_config(&db_pool, "ticket_category_id", "1528913685739733053").await;
             let category_id = serenity::model::id::ChannelId::new(conf_cat.parse::<u64>().unwrap_or(1528913685739733053));
 
             let conf_staff = crate::database::tickets::TicketDb::get_config(&db_pool, "ticket_staff_role", "").await;
 
             let everyone_role = serenity::model::id::RoleId::new(guild_id.get());
+
+            let current_user_id = match ctx.http.get_current_user().await {
+                Ok(u) => u.id,
+                Err(e) => {
+                    tracing::error!("Erro ao obter current user: {}", e);
+                    return;
+                }
+            };
 
             let mut permissions = vec![
                 PermissionOverwrite {
@@ -211,7 +219,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 PermissionOverwrite {
                     allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::READ_MESSAGE_HISTORY | Permissions::MANAGE_CHANNELS,
                     deny: Permissions::empty(),
-                    kind: PermissionOverwriteType::Member(ctx.http.get_current_user().await.unwrap().id),
+                    kind: PermissionOverwriteType::Member(current_user_id),
                 }
             ];
 
@@ -352,10 +360,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 CreateInteractionResponseMessage::new().content("Fechando o ticket em 5 segundos...")
             )).await;
 
-            let db_pool = {
+            let Some(db_pool) = ({
                 let data = ctx.data.read().await;
-                data.get::<crate::DatabasePool>().unwrap().clone()
-            };
+                data.get::<crate::DatabasePool>().cloned()
+            }) else { return; };
 
             if let Some(staff_id_str) = &staff_id_assumed {
                 if let Err(e) = TicketDb::add_ticket(&db_pool, staff_id_str).await {
@@ -397,10 +405,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 return;
             }
 
-            let pool = {
+            let Some(pool) = ({
                 let data = ctx.data.read().await;
-                data.get::<crate::DatabasePool>().unwrap().clone()
-            };
+                data.get::<crate::DatabasePool>().cloned()
+            }) else { return; };
 
             if component.data.custom_id == "config_vip_main" {
                 let main_desc = VipDb::get_main_text(&pool).await;
@@ -480,10 +488,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                     return;
                 }
 
-                let pool = {
+                let Some(pool) = ({
                     let data = ctx.data.read().await;
-                    data.get::<crate::DatabasePool>().unwrap().clone()
-                };
+                    data.get::<crate::DatabasePool>().cloned()
+                }) else { return; };
 
                 if component.data.custom_id == "config_suporte_main" {
                     let main_title = TicketDb::get_config(&pool, "panel_title", "Central de Ajuda").await;
@@ -582,10 +590,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::model::application::InputTextStyle;
             use crate::database::blacklist::BlacklistDb;
 
-            let pool = {
+            let Some(pool) = ({
                 let data = ctx.data.read().await;
-                data.get::<crate::DatabasePool>().unwrap().clone()
-            };
+                data.get::<crate::DatabasePool>().cloned()
+            }) else { return; };
 
             let target_user_id = if let serenity::model::application::ComponentInteractionDataKind::UserSelect { values } = &component.data.kind {
                 values.first().cloned()
@@ -597,7 +605,8 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let msg_id = component.message.id.to_string();
                 if let Some(panel) = BlacklistDb::get_panel(&pool, &msg_id).await {
                     let uid = user_id_str;
-                    let member = component.guild_id.unwrap().member(&ctx.http, uid).await;
+                    if let Some(guild_id) = component.guild_id {
+                        let member = guild_id.member(&ctx.http, uid).await;
                         if let Ok(m) = member {
                             if !m.roles.contains(&serenity::model::id::RoleId::new(panel.role_id.parse::<u64>().unwrap_or(0))) {
                                 let _ = component.create_response(&ctx.http, CreateInteractionResponse::Message(
@@ -606,6 +615,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                                 return;
                             }
                         }
+                    }
 
                     let modal = CreateModal::new(format!("modal_blacklist_add_{}_{}", user_id_str.get(), msg_id), "Tempo de Blacklist")
                         .components(vec![
@@ -635,10 +645,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
 
         info!("Recebeu modal submetido: {}", modal.data.custom_id);
 
-        let pool = {
+        let Some(pool) = ({
             let data = ctx.data.read().await;
-            data.get::<crate::DatabasePool>().unwrap().clone()
-        };
+            data.get::<crate::DatabasePool>().cloned()
+        }) else { return; };
 
         if modal.data.custom_id.starts_with("modal_config_suporte_") {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
@@ -699,7 +709,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Opção de suporte adicionada com sucesso!")).await;
 
             } else if modal.data.custom_id.starts_with("modal_config_suporte_edit_opt_") {
-                let opt_id = modal.data.custom_id.strip_prefix("modal_config_suporte_edit_opt_").unwrap().to_string();
+                let Some(opt_id) = modal.data.custom_id.strip_prefix("modal_config_suporte_edit_opt_").map(|s| s.to_string()) else { return; };
                 let opt_label = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let opt_desc = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let opt_emoji = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -758,7 +768,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
 
                 let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Produto VIP adicionado com sucesso!")).await;
             } else if modal.data.custom_id.starts_with("modal_config_vip_edit_block_") {
-                let opt_id = modal.data.custom_id.strip_prefix("modal_config_vip_edit_block_").unwrap();
+                let Some(opt_id) = modal.data.custom_id.strip_prefix("modal_config_vip_edit_block_") else { return; };
                 let title = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let desc = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let color = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -774,7 +784,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                     let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Bloco Extra atualizado com sucesso!")).await;
                 }
             } else if modal.data.custom_id.starts_with("modal_config_vip_edit_prod_") {
-                let opt_id = modal.data.custom_id.strip_prefix("modal_config_vip_edit_prod_").unwrap();
+                let Some(opt_id) = modal.data.custom_id.strip_prefix("modal_config_vip_edit_prod_") else { return; };
                 let label = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let price = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let role_id = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -797,7 +807,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use crate::cron::mercado_pago::MercadoPagoClient;
             use base64::{Engine as _, engine::general_purpose};
 
-            let pacote = modal.data.custom_id.strip_prefix("modal_vip_").unwrap();
+            let Some(pacote) = modal.data.custom_id.strip_prefix("modal_vip_") else { return; };
             let cpf = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
             let email = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
             let _telefone = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
@@ -887,16 +897,18 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                         let time_ms = num * multiplier;
                         let expires_at = chrono::Utc::now().timestamp_millis() + time_ms;
 
-                        let guild_id = modal.guild_id.unwrap().get().to_string();
+                        let Some(guild_id_obj) = modal.guild_id else { return; };
+                        let guild_id = guild_id_obj.get().to_string();
                         let channel_id = modal.channel_id.get().to_string();
 
                         let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new().ephemeral(true))).await;
 
                         if let Some(panel) = BlacklistDb::get_panel(&pool, &msg_id).await {
                             if let Ok(uid) = target_user_id.parse::<u64>() {
-                                let member = modal.guild_id.unwrap().member(&ctx.http, uid).await.unwrap();
-                                let role_id = serenity::model::id::RoleId::new(panel.role_id.parse::<u64>().unwrap_or(0));
-                                let _ = member.remove_role(&ctx.http, role_id).await;
+                                if let Ok(member) = guild_id_obj.member(&ctx.http, uid).await {
+                                    let role_id = serenity::model::id::RoleId::new(panel.role_id.parse::<u64>().unwrap_or(0));
+                                    let _ = member.remove_role(&ctx.http, role_id).await;
+                                }
                             }
 
                             let _ = BlacklistDb::add_user(&pool, &guild_id, &target_user_id, &panel.role_id, expires_at, &msg_id, &channel_id).await;
@@ -925,7 +937,8 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             let msg_id = modal.data.custom_id.replace("modal_blacklist_remove_", "");
             let target_user_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
 
-            let guild_id = modal.guild_id.unwrap().get().to_string();
+            let Some(guild_id_obj) = modal.guild_id else { return; };
+            let guild_id = guild_id_obj.get().to_string();
 
             let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new().ephemeral(true))).await;
 
@@ -933,7 +946,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let users = BlacklistDb::get_users_for_panel(&pool, &msg_id).await;
                 if users.iter().any(|u| u.user_id == target_user_id) {
                     if let Ok(uid) = target_user_id.parse::<u64>() {
-                        if let Ok(member) = modal.guild_id.unwrap().member(&ctx.http, uid).await {
+                        if let Ok(member) = guild_id_obj.member(&ctx.http, uid).await {
                             let role_id = serenity::model::id::RoleId::new(panel.role_id.parse::<u64>().unwrap_or(0));
                             let _ = member.add_role(&ctx.http, role_id).await;
                         }

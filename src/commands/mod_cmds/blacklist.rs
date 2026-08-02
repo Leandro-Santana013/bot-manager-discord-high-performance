@@ -53,11 +53,28 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
         match msg_result {
             Ok(msg) => {
-                let data = ctx.data.read().await;
-                let pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized").clone();
-                let guild_id = interaction.guild_id.unwrap().get();
+                let Some(guild_id) = interaction.guild_id else {
+                    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                        CreateInteractionResponseMessage::new().content("❌ Este comando só pode ser executado dentro de um servidor.").ephemeral(true)
+                    )).await;
+                    return;
+                };
 
-                let _ = BlacklistDb::add_panel(&pool, &msg.id.to_string(), &msg.channel_id.to_string(), &guild_id.to_string(), &r_id.to_string()).await;
+                let pool = {
+                    let data = ctx.data.read().await;
+                    match data.get::<crate::DatabasePool>() {
+                        Some(p) => p.clone(),
+                        None => {
+                            let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                                CreateInteractionResponseMessage::new().content("❌ Erro interno: banco de dados indisponível.").ephemeral(true)
+                            )).await;
+                            return;
+                        }
+                    }
+                };
+
+                let guild_id_u64 = guild_id.get();
+                let _ = BlacklistDb::add_panel(&pool, &msg.id.to_string(), &msg.channel_id.to_string(), &guild_id_u64.to_string(), &r_id.to_string()).await;
 
                 let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
                     CreateInteractionResponseMessage::new().content("✅ Painel de blacklist criado com sucesso!").ephemeral(true)

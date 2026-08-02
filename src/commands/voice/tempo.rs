@@ -1,4 +1,4 @@
-use serenity::builder::{CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage};
+use serenity::builder::{CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse};
 use serenity::prelude::*;
 use std::io::Cursor;
 use image::{RgbaImage, Rgba};
@@ -25,6 +25,7 @@ fn hex_to_rgba(hex: &str) -> Rgba<u8> {
     Rgba([r, g, b, 255])
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_rounded_rect(image: &mut RgbaImage, x: i32, y: i32, width: i32, height: i32, radius: i32, color: Rgba<u8>, border_color: Option<Rgba<u8>>) {
     let radius = radius as f32;
     let hw = width as f32 / 2.0;
@@ -174,7 +175,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
     let mut stats = {
         let data = ctx.data.read().await;
-        let pool = data.get::<crate::DatabasePool>().expect("DB").clone();
+        let Some(pool) = data.get::<crate::DatabasePool>().cloned() else { return; };
         crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await
     };
 
@@ -183,12 +184,12 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         if let Some(tracker) = data.get::<crate::events::voice::VoiceTracker>() {
             if let Some(join) = tracker.get(&user_id_str) {
                 let now = chrono::Utc::now().timestamp_millis();
-                let active_ms = now - join.joined_at;
+                let active_ms = now.saturating_sub(join.joined_at);
                 let mut active_muted = join.total_muted;
                 if let Some(last_mute) = join.last_mute_at {
-                    active_muted += now - last_mute;
+                    active_muted += now.saturating_sub(last_mute);
                 }
-                let active_valid = active_ms - active_muted;
+                let active_valid = active_ms.saturating_sub(active_muted);
 
                 stats.total_ms += active_valid;
                 stats.this_week_ms += active_valid;
@@ -203,11 +204,29 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
     draw_rounded_rect(&mut image, 0, 0, canvas_w, canvas_h, 25, hex_to_rgba("#111214"), None);
 
-    let data = ctx.data.read().await;
-    let font_data = data.get::<crate::FontCache>().cloned().unwrap_or_else(|| vec![]);
-    let font_bold_data = data.get::<crate::FontCacheBold>().cloned().unwrap_or_else(|| vec![]);
-    let font = Font::try_from_vec(font_data).unwrap();
-    let font_bold = Font::try_from_vec(font_bold_data).unwrap_or(font.clone());
+    let (font, font_bold) = {
+        let data = ctx.data.read().await;
+        let font_data = data.get::<crate::FontCache>().cloned().unwrap_or_default();
+        let font_bold_data = data.get::<crate::FontCacheBold>().cloned().unwrap_or_default();
+        let regular = Font::try_from_vec(font_data);
+        let bold = Font::try_from_vec(font_bold_data);
+        match (regular, bold) {
+            (Some(r), Some(b)) => (r, b),
+            (Some(r), None) => {
+                let r_clone = r.clone();
+                (r, r_clone)
+            }
+            (None, Some(b)) => {
+                let b_clone = b.clone();
+                (b_clone, b)
+            }
+            (None, None) => {
+                tracing::error!("Fontes não encontradas ou inválidas para renderizar imagem de tempo.");
+                let _ = interaction.edit_response(&ctx.http, EditInteractionResponse::new().content("❌ Erro ao renderizar imagem: fontes ausentes.")).await;
+                return;
+            }
+        }
+    };
 
     let avatar_size: i32 = 140;
     let avatar_x: i32 = 40;
@@ -346,7 +365,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
 
     let mut stats = {
         let data = ctx.data.read().await;
-        let pool = data.get::<crate::DatabasePool>().expect("DB").clone();
+        let Some(pool) = data.get::<crate::DatabasePool>().cloned() else { return; };
         crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await
     };
 
@@ -355,12 +374,12 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
         if let Some(tracker) = data.get::<crate::events::voice::VoiceTracker>() {
             if let Some(join) = tracker.get(&user_id_str) {
                 let now = chrono::Utc::now().timestamp_millis();
-                let active_ms = now - join.joined_at;
+                let active_ms = now.saturating_sub(join.joined_at);
                 let mut active_muted = join.total_muted;
                 if let Some(last_mute) = join.last_mute_at {
-                    active_muted += now - last_mute;
+                    active_muted += now.saturating_sub(last_mute);
                 }
-                let active_valid = active_ms - active_muted;
+                let active_valid = active_ms.saturating_sub(active_muted);
 
                 stats.total_ms += active_valid;
                 stats.this_week_ms += active_valid;
@@ -375,11 +394,28 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
 
     draw_rounded_rect(&mut image, 0, 0, canvas_w, canvas_h, 25, hex_to_rgba("#111214"), None);
 
-    let data = ctx.data.read().await;
-    let font_data = data.get::<crate::FontCache>().cloned().unwrap_or_else(|| vec![]);
-    let font_bold_data = data.get::<crate::FontCacheBold>().cloned().unwrap_or_else(|| vec![]);
-    let font = Font::try_from_vec(font_data).unwrap();
-    let font_bold = Font::try_from_vec(font_bold_data).unwrap_or(font.clone());
+    let (font, font_bold) = {
+        let data = ctx.data.read().await;
+        let font_data = data.get::<crate::FontCache>().cloned().unwrap_or_default();
+        let font_bold_data = data.get::<crate::FontCacheBold>().cloned().unwrap_or_default();
+        let regular = Font::try_from_vec(font_data);
+        let bold = Font::try_from_vec(font_bold_data);
+        match (regular, bold) {
+            (Some(r), Some(b)) => (r, b),
+            (Some(r), None) => {
+                let r_clone = r.clone();
+                (r, r_clone)
+            }
+            (None, Some(b)) => {
+                let b_clone = b.clone();
+                (b_clone, b)
+            }
+            (None, None) => {
+                tracing::error!("Fontes não encontradas ou inválidas para renderizar imagem de tempo.");
+                return;
+            }
+        }
+    };
 
     let avatar_size: i32 = 140;
     let avatar_x: i32 = 40;

@@ -7,20 +7,23 @@ pub async fn handle(ctx: Context, msg: Message) {
         return;
     }
 
-    let cache = {
+    let contains_blocked_word = {
         let data = ctx.data.read().await;
-        data.get::<crate::AutomodCache>().expect("AutomodCache not initialized").clone()
-    };
-    let words = cache.read().await.clone();
-    let msg_lower = msg.content.to_lowercase();
-    for word in words {
-        if msg_lower.contains(&word) {
-            let _ = msg.delete(&ctx.http).await;
-            let _ = msg.channel_id.send_message(&ctx.http, serenity::builder::CreateMessage::new()
-                .content(format!("⚠️ <@{}>, sua mensagem foi deletada pois continha uma palavra bloqueada pelo Automod.", msg.author.id))
-            ).await;
-            return;
+        if let Some(cache) = data.get::<crate::AutomodCache>() {
+            let words = cache.read().await;
+            let msg_lower = msg.content.to_lowercase();
+            words.iter().any(|w| msg_lower.contains(w))
+        } else {
+            false
         }
+    };
+
+    if contains_blocked_word {
+        let _ = msg.delete(&ctx.http).await;
+        let _ = msg.channel_id.send_message(&ctx.http, serenity::builder::CreateMessage::new()
+            .content(format!("⚠️ <@{}>, sua mensagem foi deletada pois continha uma palavra bloqueada pelo Automod.", msg.author.id))
+        ).await;
+        return;
     }
 
     if !msg.content.starts_with("biz!") {

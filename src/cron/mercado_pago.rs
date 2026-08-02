@@ -53,8 +53,12 @@ pub struct MercadoPagoClient {
 impl MercadoPagoClient {
     pub fn new() -> Self {
         let token = env::var("MP_ACCESS_TOKEN").unwrap_or_else(|_| "APP_USR-test".to_string());
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            client: Client::new(),
+            client,
             access_token: token,
         }
     }
@@ -69,9 +73,9 @@ impl MercadoPagoClient {
     ) -> Result<PaymentResponse, Box<dyn std::error::Error + Send + Sync>> {
         let idempotency_key = format!("{}-{}", chrono::Utc::now().timestamp_millis(), uuid::Uuid::new_v4());
 
-        let cpf_clean: String = cpf.chars().filter(|c| c.is_digit(10)).collect();
+        let cpf_clean: String = cpf.chars().filter(|c| c.is_ascii_digit()).collect();
         let parts: Vec<&str> = nome.split_whitespace().collect();
-        let first_name = parts.get(0).unwrap_or(&"User").to_string();
+        let first_name = parts.first().unwrap_or(&"User").to_string();
         let last_name = if parts.len() > 1 {
             parts[1..].join(" ")
         } else {

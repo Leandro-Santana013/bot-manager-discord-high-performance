@@ -35,6 +35,7 @@ impl VoiceDb {
 
         let q_index1 = "CREATE INDEX IF NOT EXISTS idx_sessoes_usuario ON sessoes_voz (id_usuario)";
         let q_index2 = "CREATE INDEX IF NOT EXISTS idx_sessoes_data ON sessoes_voz (data_sessao)";
+        let q_index3 = "CREATE INDEX IF NOT EXISTS idx_usuarios_tempo_total ON usuarios (tempo_total DESC)";
 
         if let Err(e) = sqlx::query(q1).execute(pool).await {
             error!("Erro ao criar tabela usuarios: {}", e);
@@ -44,6 +45,7 @@ impl VoiceDb {
         }
         let _ = sqlx::query(q_index1).execute(pool).await;
         let _ = sqlx::query(q_index2).execute(pool).await;
+        let _ = sqlx::query(q_index3).execute(pool).await;
 
         let _ = sqlx::query("ALTER TABLE sessoes_voz ADD COLUMN IF NOT EXISTS tempo_mutado BIGINT DEFAULT 0").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo TYPE BIGINT").execute(pool).await;
@@ -144,9 +146,11 @@ impl VoiceDb {
     pub async fn get_all_users_closing_stats(pool: &PgPool) -> Vec<UserClosingStats> {
         let rows = sqlx::query("
             SELECT u.id_usuario,
-                   (SELECT SUM(tempo) FROM sessoes_voz s WHERE s.id_usuario = u.id_usuario AND s.data_sessao >= NOW() - INTERVAL '7 days') as week_ms,
-                   (SELECT CAST(EXTRACT(DAY FROM (NOW() - MAX(data_sessao))) AS INTEGER) FROM sessoes_voz s WHERE s.id_usuario = u.id_usuario) as inactive_days
+                   COALESCE(SUM(CASE WHEN s.data_sessao >= NOW() - INTERVAL '7 days' THEN s.tempo ELSE 0 END), 0)::BIGINT as week_ms,
+                   COALESCE(EXTRACT(DAY FROM (NOW() - MAX(s.data_sessao)))::INTEGER, 999) as inactive_days
             FROM usuarios u
+            LEFT JOIN sessoes_voz s ON s.id_usuario = u.id_usuario
+            GROUP BY u.id_usuario
         ").fetch_all(pool).await.unwrap_or_else(|_| vec![]);
 
         let mut list = Vec::new();

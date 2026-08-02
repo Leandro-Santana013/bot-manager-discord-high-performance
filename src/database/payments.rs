@@ -15,6 +15,11 @@ impl PaymentDb {
         if let Err(e) = sqlx::query(q).execute(pool).await {
             error!("Erro ao criar tabela payments: {}", e);
         }
+
+        let idx_q = "CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments (created_at DESC)";
+        if let Err(e) = sqlx::query(idx_q).execute(pool).await {
+            error!("Erro ao criar índice idx_payments_created_at: {}", e);
+        }
     }
 
     pub async fn add_payment(pool: &PgPool, payment_id: &str, user_id: &str, package_id: &str) -> Result<(), sqlx::Error> {
@@ -31,8 +36,10 @@ impl PaymentDb {
     }
 
     pub async fn get_pending_payments(pool: &PgPool) -> Result<Vec<(String, String, String)>, sqlx::Error> {
-        let q = "SELECT payment_id, user_id, package_id FROM payments";
+        let min_created_at = chrono::Utc::now().timestamp() - 86400; // últimas 24h
+        let q = "SELECT payment_id, user_id, package_id FROM payments WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 100";
         let rows = sqlx::query_as::<_, (String, String, String)>(q)
+            .bind(min_created_at)
             .fetch_all(pool)
             .await?;
         Ok(rows)

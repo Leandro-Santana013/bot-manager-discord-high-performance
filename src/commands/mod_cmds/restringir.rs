@@ -47,22 +47,32 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             return;
         }
 
-        if let Some(guild_id) = interaction.guild_id {
-            let end_time = Utc::now() + Duration::minutes(minutes as i64);
-            let timestamp = serenity::model::Timestamp::from_unix_timestamp(end_time.timestamp()).unwrap();
+        let Some(guild_id) = interaction.guild_id else {
+            let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                CreateInteractionResponseMessage::new().content("❌ Este comando só pode ser executado dentro de um servidor.").ephemeral(true)
+            )).await;
+            return;
+        };
 
-            match guild_id.edit_member(&ctx.http, user.id, serenity::builder::EditMember::new().disable_communication_until(timestamp.to_string())).await {
-                Ok(_) => {
-                    let msg = format!("🔇 O usuário {} foi restringido por {} minutos.", user.tag(), minutes);
-                    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content(msg).ephemeral(true)
-                    )).await;
-                }
-                Err(e) => {
-                    let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content(format!("Falha ao restringir: {}", e)).ephemeral(true)
-                    )).await;
-                }
+        let end_time = Utc::now() + Duration::minutes(minutes);
+        let Ok(timestamp) = serenity::model::Timestamp::from_unix_timestamp(end_time.timestamp()) else {
+            let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                CreateInteractionResponseMessage::new().content("❌ Erro ao calcular timestamp de castigo.").ephemeral(true)
+            )).await;
+            return;
+        };
+
+        match guild_id.edit_member(&ctx.http, user.id, serenity::builder::EditMember::new().disable_communication_until(timestamp.to_string())).await {
+            Ok(_) => {
+                let msg = format!("🔇 O usuário {} foi restringido por {} minutos.", user.tag(), minutes);
+                let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                    CreateInteractionResponseMessage::new().content(msg).ephemeral(true)
+                )).await;
+            }
+            Err(e) => {
+                let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
+                    CreateInteractionResponseMessage::new().content(format!("Falha ao restringir: {}", e)).ephemeral(true)
+                )).await;
             }
         }
     } else {

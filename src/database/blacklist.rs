@@ -32,7 +32,9 @@ impl BlacklistDb {
                 role_id TEXT NOT NULL
             )
         ";
-        sqlx::query(query1).execute(pool).await.expect("Failed to create blacklist_panels table");
+        if let Err(e) = sqlx::query(query1).execute(pool).await {
+            tracing::error!("Failed to create blacklist_panels table: {}", e);
+        }
 
         let query2 = "
             CREATE TABLE IF NOT EXISTS blacklist_users (
@@ -45,7 +47,9 @@ impl BlacklistDb {
                 PRIMARY KEY (guild_id, user_id)
             )
         ";
-        sqlx::query(query2).execute(pool).await.expect("Failed to create blacklist_users table");
+        if let Err(e) = sqlx::query(query2).execute(pool).await {
+            tracing::error!("Failed to create blacklist_users table: {}", e);
+        }
     }
 
     pub async fn add_panel(pool: &PgPool, msg_id: &str, channel_id: &str, guild_id: &str, role_id: &str) -> Result<(), sqlx::Error> {

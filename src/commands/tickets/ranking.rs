@@ -91,7 +91,9 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         response = response.components(vec![generate_buttons(current_page)]);
     }
 
-    let mut msg = interaction.edit_response(&ctx.http, response).await.unwrap();
+    let Ok(mut msg) = interaction.edit_response(&ctx.http, response).await else {
+        return;
+    };
 
     if max_pages > 1 {
         let mut collector = ComponentInteractionCollector::new(&ctx.shard)
@@ -108,7 +110,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             }
 
             match mci.data.custom_id.as_str() {
-                "rank_prev" => if current_page > 0 { current_page -= 1; },
+                "rank_prev" => current_page = current_page.saturating_sub(1),
                 "rank_next" => if current_page < max_pages - 1 { current_page += 1; },
                 _ => {}
             }

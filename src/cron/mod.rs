@@ -24,4 +24,9 @@ pub async fn start_crons(ctx: Arc<Context>) {
     tokio::spawn(async move {
         fechamento::start(ctx_clone3).await;
     });
+
+    let ctx_clone4 = ctx.clone();
+    tokio::spawn(async move {
+        crate::events::voice::start_voice_flush_cron(ctx_clone4).await;
+    });
 }
