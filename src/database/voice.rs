@@ -1,5 +1,5 @@
 use sqlx::PgPool;
-use tracing::error;
+use tracing::{error, info};
 use sqlx::Row;
 
 pub struct VoiceDb;
