@@ -29,9 +29,8 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         }
     };
 
-    // Remove a sobreposição do @everyone, ou redefine para empty. No Serenity, excluir é delete_permission.
     if let Err(_e) = channel_id.delete_permission(&ctx.http, PermissionOverwriteType::Role(RoleId::new(guild_id.get()))).await {
-        // Se falhar ao excluir, tenta colocar neutro
+
         let overwrite = PermissionOverwrite {
             allow: Permissions::empty(),
             deny: Permissions::empty(),

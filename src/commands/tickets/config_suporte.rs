@@ -25,11 +25,11 @@ pub async fn build_config_suporte_panel(pool: &sqlx::PgPool) -> (CreateEmbed, Ve
     let btn_main = CreateButton::new("config_suporte_main").label("Editar Textos Principais").style(serenity::model::application::ButtonStyle::Primary).emoji('📝');
     let btn_add_opt = CreateButton::new("config_suporte_add_opt").label("Adicionar Nova Opção").style(serenity::model::application::ButtonStyle::Success).emoji('➕');
     let btn_cfg_internal = CreateButton::new("config_suporte_channels").label("Configurar Canais/Cargos").style(serenity::model::application::ButtonStyle::Secondary).emoji('⚙');
-    
+
     let mut components = vec![CreateActionRow::Buttons(vec![btn_main, btn_add_opt, btn_cfg_internal])];
 
     let options = TicketDb::get_ticket_options(pool).await;
-    
+
     if !options.is_empty() {
         let edit_options: Vec<CreateSelectMenuOption> = options.iter().map(|o| {
             let mut opt = CreateSelectMenuOption::new(o.label.chars().take(100).collect::<String>(), o.id.clone())

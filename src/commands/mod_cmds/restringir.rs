@@ -51,7 +51,6 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             let end_time = Utc::now() + Duration::minutes(minutes as i64);
             let timestamp = serenity::model::Timestamp::from_unix_timestamp(end_time.timestamp()).unwrap();
 
-            // Usa o timeout (communication_disabled_until) 
             match guild_id.edit_member(&ctx.http, user.id, serenity::builder::EditMember::new().disable_communication_until(timestamp.to_string())).await {
                 Ok(_) => {
                     let msg = format!("🔇 O usuário {} foi restringido por {} minutos.", user.tag(), minutes);

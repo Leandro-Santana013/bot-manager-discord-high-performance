@@ -58,7 +58,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             }
         }
     } else {
-        // Modo Nuke: Clonar e apagar o canal
+
         let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
             CreateInteractionResponseMessage::new().content("⚠️ Iniciando o protocolo de limpeza total (Nuke)...").ephemeral(true)
         )).await;
@@ -68,11 +68,11 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                 if let Some(guild_id) = interaction.guild_id {
                     let mut builder = CreateChannel::new(guild_channel.name.clone())
                         .kind(guild_channel.kind);
-                    
+
                     if let Some(parent_id) = guild_channel.parent_id {
                         builder = builder.category(parent_id);
                     }
-                    
+
                     match guild_id.create_channel(&ctx.http, builder).await {
                         Ok(new_channel) => {
                             let _ = guild_channel.delete(&ctx.http).await;

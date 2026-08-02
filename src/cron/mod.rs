@@ -9,9 +9,7 @@ use tracing::info;
 
 pub async fn start_crons(ctx: Arc<Context>) {
     info!("Iniciando tarefas agendadas (Cron Jobs)...");
-    
-    // Iniciar tarefas em threads verdes separadas (Zero overhead no tokio)
-    
+
     let ctx_clone = ctx.clone();
     tokio::spawn(async move {
         blacklist::start(ctx_clone).await;

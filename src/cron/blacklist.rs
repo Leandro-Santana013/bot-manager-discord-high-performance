@@ -9,7 +9,6 @@ use crate::database::blacklist::BlacklistDb;
 pub async fn start(ctx: Arc<Context>) {
     info!("Cron Blacklist pronto (event-driven, aguardando notificações).");
 
-    // Wait for pool to be inserted
     sleep(Duration::from_secs(5)).await;
 
     let (pool, notify) = {
@@ -21,34 +20,32 @@ pub async fn start(ctx: Arc<Context>) {
 
     let http = ctx.http.clone();
 
-    // Ao iniciar, verifica se já existem usuários pendentes no banco (de antes do restart)
     let has_pending = !BlacklistDb::get_next_expiration(&pool).await.is_none();
     if has_pending {
         info!("[Cron Blacklist] Usuários pendentes encontrados no banco, iniciando verificação.");
     }
 
     loop {
-        // Calcula quanto tempo dormir até a próxima expiração
+
         let sleep_duration = if let Some(next_expiry) = BlacklistDb::get_next_expiration(&pool).await {
             let now = chrono::Utc::now().timestamp_millis();
             let diff = next_expiry - now;
             if diff <= 0 {
-                // Já expirou, processar imediatamente
+
                 Duration::from_millis(0)
             } else {
-                // Espera até a expiração + 1s de margem
+
                 Duration::from_millis(diff as u64 + 1000)
             }
         } else {
-            // Sem ninguém na blacklist — dorme até ser notificado
+
             info!("[Cron Blacklist] Nenhum usuário na blacklist, aguardando notificação...");
             notify.notified().await;
             info!("[Cron Blacklist] Notificação recebida! Verificando blacklist...");
-            // Após notificação, recalcula o tempo de espera
+
             continue;
         };
 
-        // Espera pelo tempo calculado OU por uma nova notificação (o que vier primeiro)
         if sleep_duration > Duration::from_millis(0) {
             tokio::select! {
                 _ = sleep(sleep_duration) => {},
@@ -58,7 +55,6 @@ pub async fn start(ctx: Arc<Context>) {
             }
         }
 
-        // Processa usuários expirados
         let now = chrono::Utc::now().timestamp_millis();
         let expired_users = BlacklistDb::get_expired_users(&pool, now).await;
 
@@ -90,7 +86,7 @@ pub async fn start(ctx: Arc<Context>) {
         for msg_id in panels_to_update {
             if let Some(panel) = BlacklistDb::get_panel(&pool, &msg_id).await {
                 let users = BlacklistDb::get_users_for_panel(&pool, &msg_id).await;
-                
+
                 let mut desc = String::new();
                 if users.is_empty() {
                     desc = "Nenhum membro restrito.".to_string();

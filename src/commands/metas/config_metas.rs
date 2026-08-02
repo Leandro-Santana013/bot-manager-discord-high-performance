@@ -41,7 +41,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     for r in &roles {
         let option_name = format!("role_{}", r);
         let role_input = interaction.data.options.iter().find(|o| o.name == option_name);
-        
+
         if let Some(opt) = role_input {
             if let serenity::model::application::CommandDataOptionValue::Role(role_id) = &opt.value {
                 let _ = TicketDb::set_config(&pool, &format!("meta_role_{}", r), &role_id.to_string()).await;

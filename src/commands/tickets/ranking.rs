@@ -21,7 +21,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         let data = ctx.data.read().await;
         data.get::<crate::DatabasePool>().unwrap().clone()
     };
-    
+
     let db_users_res = TicketDb::get_top_tickets(&pool, 1000).await;
     let ranking = match db_users_res {
         Ok(rows) => rows,
@@ -49,7 +49,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
         for (i, (user_id, quantidade)) in current_users.iter().enumerate() {
             let global_index = start + i;
-            
+
             let prefix = match global_index {
                 0 => "🥇",
                 1 => "🥈",
@@ -71,7 +71,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             .emoji('⬅')
             .style(serenity::model::application::ButtonStyle::Danger)
             .disabled(page == 0);
-            
+
         let btn_ind = CreateButton::new("rank_ind")
             .label(format!("{} / {}", page + 1, max_pages))
             .style(serenity::model::application::ButtonStyle::Secondary)

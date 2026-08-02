@@ -37,7 +37,7 @@ impl VipDb {
         match sqlx::query_as::<_, (String,)>(q)
             .bind(key)
             .fetch_optional(pool)
-            .await 
+            .await
         {
             Ok(Some((valor,))) => valor,
             _ => default_value.to_string(),
@@ -76,13 +76,13 @@ impl VipDb {
     pub async fn save_extra_block(pool: &PgPool, id: String, title: String, desc: String, color: String) {
         let mut blocks = Self::get_extra_blocks(pool).await;
         let data = VipBlock { id: id.clone(), title, desc, color };
-        
+
         if let Some(pos) = blocks.iter().position(|b| b.id == id) {
             blocks[pos] = data;
         } else {
             blocks.insert(0, data);
         }
-        
+
         let json = serde_json::to_string(&blocks).unwrap_or_else(|_| "[]".to_string());
         let _ = Self::set_config(pool, "extra_blocks", &json).await;
     }
@@ -114,13 +114,13 @@ impl VipDb {
     pub async fn save_product(pool: &PgPool, id: String, label: String, price: String, role_id: String) {
         let mut prods = Self::get_products(pool).await;
         let data = VipProduct { id: id.clone(), label, price, role_id };
-        
+
         if let Some(pos) = prods.iter().position(|p| p.id == id) {
             prods[pos] = data;
         } else {
             prods.push(data);
         }
-        
+
         let json = serde_json::to_string(&prods).unwrap_or_else(|_| "[]".to_string());
         let _ = Self::set_config(pool, "vip_products", &json).await;
     }

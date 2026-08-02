@@ -68,7 +68,7 @@ impl MercadoPagoClient {
         description: String,
     ) -> Result<PaymentResponse, Box<dyn std::error::Error + Send + Sync>> {
         let idempotency_key = format!("{}-{}", chrono::Utc::now().timestamp_millis(), uuid::Uuid::new_v4());
-        
+
         let cpf_clean: String = cpf.chars().filter(|c| c.is_digit(10)).collect();
         let parts: Vec<&str> = nome.split_whitespace().collect();
         let first_name = parts.get(0).unwrap_or(&"User").to_string();
@@ -112,7 +112,7 @@ impl MercadoPagoClient {
 
     pub async fn get_payment_status(&self, payment_id: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("https://api.mercadopago.com/v1/payments/{}", payment_id);
-        
+
         let res = self.client.get(&url)
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()

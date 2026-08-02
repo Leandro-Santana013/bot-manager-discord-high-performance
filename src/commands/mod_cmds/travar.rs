@@ -32,7 +32,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let overwrite = PermissionOverwrite {
         allow: Permissions::empty(),
         deny: Permissions::CONNECT,
-        kind: PermissionOverwriteType::Role(RoleId::new(guild_id.get())), // everyone role id == guild id
+        kind: PermissionOverwriteType::Role(RoleId::new(guild_id.get())),
     };
 
     if let Err(e) = channel_id.create_permission(&ctx.http, overwrite).await {

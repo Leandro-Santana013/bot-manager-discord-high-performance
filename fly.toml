@@ -1,4 +1,3 @@
-# fly.toml app configuration file
 app = 'bot-manager-discord-high-performance'
 primary_region = 'gru'
 

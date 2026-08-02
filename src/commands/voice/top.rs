@@ -25,16 +25,14 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         CreateInteractionResponseMessage::new().ephemeral(true)
     )).await;
 
-    // Fetch static DB
     let pool = {
         let data = ctx.data.read().await;
         data.get::<crate::DatabasePool>().unwrap().clone()
     };
-    
+
     let db_users = crate::database::voice::VoiceDb::get_all_users_time(&pool).await;
     let mut user_map: std::collections::HashMap<String, i64> = db_users.into_iter().collect();
 
-    // Sum active session time
     {
         let data = ctx.data.read().await;
         if let Some(tracker) = data.get::<crate::events::voice::VoiceTracker>() {
@@ -89,7 +87,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         for (i, (user_id, ms)) in current_users.iter().enumerate() {
             let global_index = start + i;
             let time_str = ms_to_time(*ms);
-            
+
             let prefix = match global_index {
                 0 => "🥇",
                 1 => "🥈",
@@ -116,7 +114,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             .emoji('⬅')
             .style(serenity::model::application::ButtonStyle::Danger)
             .disabled(page == 0);
-            
+
         let btn_ind = CreateButton::new("top_ind")
             .label(format!("{} / {}", page + 1, max_pages))
             .style(serenity::model::application::ButtonStyle::Secondary)
@@ -174,7 +172,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
         let data = ctx.data.read().await;
         data.get::<crate::DatabasePool>().unwrap().clone()
     };
-    
+
     let db_users = crate::database::voice::VoiceDb::get_all_users_time(&pool).await;
     let mut user_map: std::collections::HashMap<String, i64> = db_users.into_iter().collect();
 
@@ -230,7 +228,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
         for (i, (user_id, ms)) in current_users.iter().enumerate() {
             let global_index = start + i;
             let time_str = ms_to_time(*ms);
-            
+
             let prefix = match global_index {
                 0 => "🥇",
                 1 => "🥈",
@@ -257,7 +255,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
             .emoji('⬅')
             .style(serenity::model::application::ButtonStyle::Danger)
             .disabled(page == 0);
-            
+
         let btn_ind = CreateButton::new("top_ind")
             .label(format!("{} / {}", page + 1, max_pages))
             .style(serenity::model::application::ButtonStyle::Secondary)
@@ -279,10 +277,10 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
 
     if let Ok(reply) = msg.channel_id.send_message(&ctx.http, response).await {
         let http_clone = ctx.http.clone();
-        
+
         let msg_id = reply.id;
         let _shard = ctx.shard.clone();
-        
+
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(20)).await;
             let _ = reply.delete(&http_clone).await;

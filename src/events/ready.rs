@@ -4,7 +4,7 @@ use tracing::info;
 
 pub async fn handle(ctx: Context, ready: Ready) {
     info!("🤖 Logado como {}! Sistema de banco de dados e rastreio de call operantes.", ready.user.tag());
-    
+
     let commands = vec![
         crate::commands::mod_cmds::ban::register(),
         crate::commands::mod_cmds::limpar::register(),
@@ -31,14 +31,12 @@ pub async fn handle(ctx: Context, ready: Ready) {
     if let Err(why) = serenity::model::application::Command::set_global_commands(&ctx.http, commands).await {
         tracing::error!("Erro ao registrar comandos: {:?}", why);
     }
-    
-    // Iniciar Cron Jobs
+
     crate::cron::start_crons(std::sync::Arc::new(ctx.clone())).await;
 
-    // Recupera pessoas que já estavam em call antes do bot reiniciar
     let ctx_clone = ctx.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await; // Aguarda cache carregar
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         let data = ctx_clone.data.read().await;
         if let Some(tracker) = data.get::<crate::events::voice::VoiceTracker>() {
             let mut users_in_voice = Vec::new();
@@ -56,7 +54,7 @@ pub async fn handle(ctx: Context, ready: Ready) {
                     }
                 }
             }
-            
+
             let mut recovered = 0;
             for (user_id, is_muted) in users_in_voice {
                 let uid_str = user_id.to_string();

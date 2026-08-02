@@ -7,7 +7,6 @@ pub async fn handle(ctx: Context, msg: Message) {
         return;
     }
 
-    // Automod: deleta mensagens que contêm palavras censuradas (leitura do cache em memória)
     let cache = {
         let data = ctx.data.read().await;
         data.get::<crate::AutomodCache>().expect("AutomodCache not initialized").clone()
@@ -20,7 +19,7 @@ pub async fn handle(ctx: Context, msg: Message) {
             let _ = msg.channel_id.send_message(&ctx.http, serenity::builder::CreateMessage::new()
                 .content(format!("⚠️ <@{}>, sua mensagem foi deletada pois continha uma palavra bloqueada pelo Automod.", msg.author.id))
             ).await;
-            return; // Para a execução, não processa comandos
+            return;
         }
     }
 
@@ -30,7 +29,7 @@ pub async fn handle(ctx: Context, msg: Message) {
 
     let command = msg.content.strip_prefix("biz!").unwrap_or("").trim().to_lowercase();
     let parts: Vec<&str> = command.split_whitespace().collect();
-    
+
     if parts.is_empty() {
         return;
     }
@@ -46,8 +45,7 @@ pub async fn handle(ctx: Context, msg: Message) {
         }
         "painelvip" => {
             info!("Comando de prefixo recebido: biz!painelvip");
-            // Só para staff, similar ao original. Vou apenas instanciar painelvip se ele der permissão. Mas o run_message lá não existe, farei a integração depois, ou usará slash.
-            // Vou focar no painelvip via slash que já está pronto.
+
         }
         "tempo" => {
             info!("Comando de prefixo recebido: biz!tempo");

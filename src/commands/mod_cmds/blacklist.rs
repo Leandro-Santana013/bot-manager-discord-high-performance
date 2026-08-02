@@ -37,7 +37,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
         let select = CreateSelectMenu::new("blacklist_add_user", CreateSelectMenuKind::User { default_users: None })
             .placeholder("Adicionar usuário à blacklist...");
-        
+
         let button = CreateButton::new("blacklist_remove_user")
             .label("Remover Usuário da Blacklist")
             .emoji('🔓')
@@ -46,7 +46,6 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         let row1 = CreateActionRow::SelectMenu(select);
         let row2 = CreateActionRow::Buttons(vec![button]);
 
-        // Envia mensagem
         let msg_result = interaction.channel_id.send_message(&ctx.http, serenity::builder::CreateMessage::new()
             .embed(embed)
             .components(vec![row1, row2])
@@ -57,7 +56,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                 let data = ctx.data.read().await;
                 let pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized").clone();
                 let guild_id = interaction.guild_id.unwrap().get();
-                
+
                 let _ = BlacklistDb::add_panel(&pool, &msg.id.to_string(), &msg.channel_id.to_string(), &guild_id.to_string(), &r_id.to_string()).await;
 
                 let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
@@ -80,7 +79,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 pub async fn update_panel(ctx: &Context, pool: &sqlx::PgPool, msg_id: &str) {
     if let Some(panel) = BlacklistDb::get_panel(pool, msg_id).await {
         let users = BlacklistDb::get_users_for_panel(pool, msg_id).await;
-        
+
         let mut desc = String::new();
         if users.is_empty() {
             desc = "Nenhum membro restrito.".to_string();

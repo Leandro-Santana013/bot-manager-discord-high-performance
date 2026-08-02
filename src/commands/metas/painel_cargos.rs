@@ -15,7 +15,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         RoleId::new(1528910395656507392),
         RoleId::new(1528884120439095537),
     ];
-    
+
     let mut has_staff_role = false;
     if let Some(member) = &interaction.member {
         if member.permissions.unwrap_or(Permissions::empty()).administrator() {

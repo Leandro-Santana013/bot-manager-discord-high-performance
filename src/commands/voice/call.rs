@@ -30,7 +30,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         let channel_id = ctx.cache.guild(guild_id)
             .and_then(|g| g.voice_states.get(&interaction.user.id).cloned())
             .and_then(|vs| vs.channel_id);
-            
+
         if let Some(channel_id) = channel_id {
             let edit = serenity::builder::EditChannel::new().user_limit(limit);
             match channel_id.edit(&ctx.http, edit).await {

@@ -45,12 +45,10 @@ impl VoiceDb {
         let _ = sqlx::query(q_index1).execute(pool).await;
         let _ = sqlx::query(q_index2).execute(pool).await;
 
-        // Migração segura para colunas e tipos BIGINT no PostgreSQL
         let _ = sqlx::query("ALTER TABLE sessoes_voz ADD COLUMN IF NOT EXISTS tempo_mutado BIGINT DEFAULT 0").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo TYPE BIGINT").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo_mutado TYPE BIGINT").execute(pool).await;
 
-        // Corrige e sincroniza a sequência do SERIAL (sessoes_voz_id_seq) com o maior ID existente
         let _ = sqlx::query("
             SELECT setval(
                 pg_get_serial_sequence('sessoes_voz', 'id'),
@@ -59,7 +57,6 @@ impl VoiceDb {
             )
         ").execute(pool).await;
 
-        // Sincroniza o tempo_total de todos os usuários a partir da soma de sessoes_voz
         Self::sync_all_users(pool).await;
     }
 
@@ -94,7 +91,7 @@ impl VoiceDb {
             .bind(mute_time_spent)
             .execute(pool)
             .await?;
-            
+
         Ok(())
     }
 
@@ -134,7 +131,7 @@ impl VoiceDb {
     pub async fn get_all_users_time(pool: &PgPool) -> Vec<(String, i64)> {
         let rows = sqlx::query("SELECT id_usuario, tempo_total FROM usuarios")
             .fetch_all(pool).await.unwrap_or_else(|_| vec![]);
-        
+
         let mut list = Vec::new();
         for row in rows {
             let id: String = row.get("id_usuario");
@@ -157,7 +154,7 @@ impl VoiceDb {
             let id_usuario: String = row.get("id_usuario");
             let this_week_ms: i64 = row.try_get("week_ms").unwrap_or(0);
             let days_inactive: i64 = row.try_get("inactive_days").unwrap_or(0);
-            
+
             list.push(UserClosingStats {
                 id_usuario,
                 this_week_ms,

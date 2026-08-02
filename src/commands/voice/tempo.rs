@@ -37,12 +37,12 @@ fn draw_rounded_rect(image: &mut RgbaImage, x: i32, y: i32, width: i32, height: 
             let px = (ix as f32 + 0.5 - cx).abs() - hw + radius;
             let py = (iy as f32 + 0.5 - cy).abs() - hh + radius;
             let dist = px.max(0.0).hypot(py.max(0.0)) + px.max(py).min(0.0) - radius;
-            
+
             if dist > 1.0 { continue; }
-            
+
             let alpha = (1.0 - dist).clamp(0.0, 1.0);
             let mut target_color = color;
-            
+
             if let Some(bc) = border_color {
                 if dist > -1.5 {
                     let border_alpha = (dist + 1.5).clamp(0.0, 1.0);
@@ -54,7 +54,7 @@ fn draw_rounded_rect(image: &mut RgbaImage, x: i32, y: i32, width: i32, height: 
                     ]);
                 }
             }
-            
+
             if alpha > 0.0 {
                 let mut p = *image.get_pixel(ix as u32, iy as u32);
                 let a = alpha;
@@ -169,10 +169,9 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
             }
         }
     }
-    
+
     let user_id_str = target_user.id.to_string();
 
-    // 1. Fetch DB Stats & Live Stats
     let mut stats = {
         let data = ctx.data.read().await;
         let pool = data.get::<crate::DatabasePool>().expect("DB").clone();
@@ -190,7 +189,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                     active_muted += now - last_mute;
                 }
                 let active_valid = active_ms - active_muted;
-                
+
                 stats.total_ms += active_valid;
                 stats.this_week_ms += active_valid;
                 stats.this_week_muted_ms += active_muted;
@@ -201,7 +200,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let canvas_w = 800;
     let canvas_h = 620;
     let mut image = RgbaImage::new(canvas_w as u32, canvas_h as u32);
-    
+
     draw_rounded_rect(&mut image, 0, 0, canvas_w, canvas_h, 25, hex_to_rgba("#111214"), None);
 
     let data = ctx.data.read().await;
@@ -215,7 +214,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let avatar_y: i32 = 80;
 
     let avatar_url = target_user.avatar_url().unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".to_string());
-    
+
     let req_client = {
         let data = ctx.data.read().await;
         data.get::<crate::HttpClient>().cloned().unwrap_or_else(reqwest::Client::new)
@@ -247,13 +246,12 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         }
     }
 
-    // Textos Superiores
     let username_x = avatar_x + avatar_size + 20;
     let username_y = avatar_y + 15;
-    
+
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &target_user.name);
     draw_text_mut(&mut image, hex_to_rgba("#999999"), username_x, username_y + 45, Scale::uniform(20.0), &font_bold, &format!("Tempo total: {}", ms_to_time(stats.total_ms)));
-    
+
     let rank_text = format!("Rank Atual: #{}", stats.rank);
     let w = font_bold.layout(&rank_text, Scale::uniform(24.0), rusttype::Point { x: 0.0, y: 0.0 }).last().map(|g| g.position().x + g.unpositioned().h_metrics().advance_width).unwrap_or(150.0);
     draw_text_mut(&mut image, hex_to_rgba("#ffcc00"), canvas_w - 40 - w as i32, username_y + 20, Scale::uniform(24.0), &font_bold, &rank_text);
@@ -274,7 +272,6 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
         draw_text_mut(img, color, x_center - (w / 2), y, scale, font, text);
     };
 
-    // Titulos
     draw_centered(&mut image, col1_x + (col_w/2), start_cols_y + 25, Scale::uniform(22.0), &font_bold, "TEMPO DA SEMANA", hex_to_rgba("#ffffff"));
     draw_centered(&mut image, col1_x + (col_w/2), start_cols_y + 55, Scale::uniform(16.0), &font, &week1_str, hex_to_rgba("#777777"));
 
@@ -286,39 +283,33 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let box_y1 = start_cols_y + 90;
     let box_y2 = start_cols_y + 195;
 
-    // BOX 1 (Semana Atual)
     draw_rounded_rect(&mut image, col1_x + 20, box_y1, box_w, box_h, 20, hex_to_rgba("#111111"), Some(hex_to_rgba("#444444")));
     draw_clock_icon(&mut image, col1_x + 60, box_y1 + box_h/2, hex_to_rgba("#cccccc"));
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col1_x + 103, box_y1 + 20, Scale::uniform(26.0), &font_bold, &ms_to_time(stats.this_week_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col1_x + 105, box_y1 + 52, Scale::uniform(16.0), &font, "Tempo total da semana.");
 
-    // BOX 2 (Mutado Semana Atual)
     draw_rounded_rect(&mut image, col1_x + 20, box_y2, box_w, box_h, 20, hex_to_rgba("#1a0505"), Some(hex_to_rgba("#551111")));
     draw_mute_icon(&mut image, col1_x + 60, box_y2 + box_h/2, hex_to_rgba("#cc4444"));
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col1_x + 103, box_y2 + 20, Scale::uniform(26.0), &font_bold, &ms_to_time(stats.this_week_muted_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col1_x + 105, box_y2 + 52, Scale::uniform(16.0), &font, "Tempo que passou mutado.");
 
-    // BOX 3 (Semana Passada)
     draw_rounded_rect(&mut image, col2_x + 20, box_y1, box_w, box_h, 20, hex_to_rgba("#111111"), Some(hex_to_rgba("#444444")));
     draw_clock_icon(&mut image, col2_x + 60, box_y1 + box_h/2, hex_to_rgba("#cccccc"));
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col2_x + 103, box_y1 + 20, Scale::uniform(26.0), &font_bold, &ms_to_time(stats.last_week_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col2_x + 105, box_y1 + 52, Scale::uniform(16.0), &font, "Tempo total da semana.");
 
-    // BOX 4 (Mutado Semana Passada)
     draw_rounded_rect(&mut image, col2_x + 20, box_y2, box_w, box_h, 20, hex_to_rgba("#1a0505"), Some(hex_to_rgba("#551111")));
     draw_mute_icon(&mut image, col2_x + 60, box_y2 + box_h/2, hex_to_rgba("#cc4444"));
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col2_x + 103, box_y2 + 20, Scale::uniform(26.0), &font_bold, &ms_to_time(stats.last_week_muted_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col2_x + 105, box_y2 + 52, Scale::uniform(16.0), &font, "Tempo que passou mutado.");
 
-    // Banner Rodapé (Meta)
     let banner_w = 600;
     let banner_h = 40;
     let banner_x = (canvas_w - banner_w) / 2;
     let banner_y = canvas_h - 60;
-    
+
     draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, hex_to_rgba("#330000"), Some(hex_to_rgba("#880000")));
-    
-    // Ícone de alvo à esquerda
+
     let icon_x = banner_x + 25;
     let icon_y = banner_y + banner_h / 2;
     draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, hex_to_rgba("#ff4444"));
@@ -370,7 +361,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
                     active_muted += now - last_mute;
                 }
                 let active_valid = active_ms - active_muted;
-                
+
                 stats.total_ms += active_valid;
                 stats.this_week_ms += active_valid;
                 stats.this_week_muted_ms += active_muted;
@@ -381,7 +372,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let canvas_w = 800;
     let canvas_h = 620;
     let mut image = RgbaImage::new(canvas_w as u32, canvas_h as u32);
-    
+
     draw_rounded_rect(&mut image, 0, 0, canvas_w, canvas_h, 25, hex_to_rgba("#111214"), None);
 
     let data = ctx.data.read().await;
@@ -418,10 +409,10 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
 
     let username_x = avatar_x + avatar_size + 20;
     let username_y = avatar_y + 15;
-    
+
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), username_x, username_y, Scale::uniform(36.0), &font_bold, &target_user.name);
     draw_text_mut(&mut image, hex_to_rgba("#999999"), username_x, username_y + 45, Scale::uniform(20.0), &font_bold, &format!("Tempo total: {}", ms_to_time(stats.total_ms)));
-    
+
     let rank_text = format!("Rank Atual: #{}", stats.rank);
     let w = font_bold.layout(&rank_text, Scale::uniform(24.0), rusttype::Point { x: 0.0, y: 0.0 }).last().map(|g| g.position().x + g.unpositioned().h_metrics().advance_width).unwrap_or(150.0);
     draw_text_mut(&mut image, hex_to_rgba("#ffcc00"), canvas_w - 40 - w as i32, username_y + 20, Scale::uniform(24.0), &font_bold, &rank_text);
@@ -476,10 +467,9 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let banner_h = 40;
     let banner_x = (canvas_w - banner_w) / 2;
     let banner_y = canvas_h - 60;
-    
+
     draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, hex_to_rgba("#330000"), Some(hex_to_rgba("#880000")));
-    
-    // Ícone de alvo à esquerda
+
     let icon_x = banner_x + 25;
     let icon_y = banner_y + banner_h / 2;
     draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, hex_to_rgba("#ff4444"));

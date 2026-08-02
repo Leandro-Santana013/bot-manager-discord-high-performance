@@ -7,7 +7,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
         info!("Recebeu comando: {}", command.data.name);
         crate::commands::handle_command(&ctx, &command).await;
     } else if let Interaction::Component(component) = interaction {
-        // Tratar cliques em botões (ex: painéis VIP e Ticket)
+
         info!("Recebeu interação de componente: {}", component.data.custom_id);
 
         let staff_roles: Vec<serenity::model::id::RoleId> = vec![
@@ -16,7 +16,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             serenity::model::id::RoleId::new(1528910395656507392),
             serenity::model::id::RoleId::new(1528884120439095537),
         ];
-        
+
         let mut has_staff_role = false;
         if let Some(member) = &component.member {
             if member.permissions.unwrap_or(serenity::model::Permissions::empty()).administrator() {
@@ -34,7 +34,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
         if component.data.custom_id == "menu_selecionar_usuario_cargo" {
             use serenity::model::application::ComponentInteractionDataKind;
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, CreateActionRow, CreateSelectMenu, CreateSelectMenuKind};
-            
+
             if !has_staff_role {
                 let _ = component.create_response(&ctx.http, CreateInteractionResponse::Message(
                     CreateInteractionResponseMessage::new().content("❌ Apenas membros da equipe podem usar este painel.").ephemeral(true)
@@ -84,7 +84,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
 
             let target_user_id_str = component.data.custom_id.strip_prefix("menu_selecionar_cargo_").unwrap();
             let target_user_id: u64 = target_user_id_str.parse().unwrap_or(0);
-            
+
             let selected_roles = match &component.data.kind {
                 ComponentInteractionDataKind::RoleSelect { values } => values.clone(),
                 _ => return,
@@ -130,7 +130,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, CreateEmbed, CreateActionRow, CreateButton};
             use serenity::model::application::ButtonStyle;
             use crate::database::tickets::TicketDb;
-            
+
             let selected_option_id = match &component.data.kind {
                 ComponentInteractionDataKind::StringSelect { values } => {
                     if let Some(val) = values.first() {
@@ -152,7 +152,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             let data = ctx.data.read().await;
             let db_pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized");
             let options = TicketDb::get_ticket_options(db_pool).await;
-            
+
             let option = options.into_iter().find(|o| o.id == selected_option_id);
             let descricao = option.map(|o| o.reply).unwrap_or_else(|| "Clique no botão abaixo para abrir o seu ticket.".to_string());
             let id_botao = format!("abrir_ticket_{}", selected_option_id);
@@ -165,13 +165,13 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 CreateButton::new(id_botao)
                     .label("Abrir Ticket")
                     .style(ButtonStyle::Primary)
-                    .emoji('🎫') 
+                    .emoji('🎫')
             ]);
 
             let _ = component.create_response(&ctx.http, CreateInteractionResponse::Message(
                 CreateInteractionResponseMessage::new().embed(embed).components(vec![row_button]).ephemeral(true)
             )).await;
-            
+
         } else if component.data.custom_id.starts_with("abrir_ticket_") {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse, CreateChannel, CreateMessage, CreateEmbed, CreateActionRow, CreateButton};
             use serenity::model::application::ButtonStyle;
@@ -179,11 +179,11 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::model::Permissions;
 
             let tipo_ticket = component.data.custom_id.strip_prefix("abrir_ticket_").unwrap().to_uppercase();
-            
+
             let _ = component.create_response(&ctx.http, CreateInteractionResponse::Defer(
                 CreateInteractionResponseMessage::new().ephemeral(true)
             )).await;
-            
+
             let guild_id = component.guild_id.unwrap();
             let user_id = component.user.id;
             let db_pool = {
@@ -192,11 +192,11 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             };
             let conf_cat = crate::database::tickets::TicketDb::get_config(&db_pool, "ticket_category_id", "1528913685739733053").await;
             let category_id = serenity::model::id::ChannelId::new(conf_cat.parse::<u64>().unwrap_or(1528913685739733053));
-            
+
             let conf_staff = crate::database::tickets::TicketDb::get_config(&db_pool, "ticket_staff_role", "").await;
-            
+
             let everyone_role = serenity::model::id::RoleId::new(guild_id.get());
-            
+
             let mut permissions = vec![
                 PermissionOverwrite {
                     allow: Permissions::empty(),
@@ -266,7 +266,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, EditChannel, CreateActionRow, CreateButton};
             use serenity::model::application::ButtonStyle;
             use serenity::model::Permissions;
-            
+
             let staff_user_id = component.user.id;
             let channel_id = component.channel_id;
 
@@ -292,7 +292,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 use serenity::builder::CreateEmbed;
                 let mut new_embed = CreateEmbed::from(old_embed.clone())
                     .color(0xFEE75C);
-                
+
                 new_embed = new_embed.field("Atendente Atual:", format!("<@{}>", staff_user_id), false);
 
                 let row = CreateActionRow::Buttons(vec![
@@ -308,14 +308,14 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             }
 
             let _ = channel_id.send_message(&ctx.http, serenity::builder::CreateMessage::new().content(format!("✅ Ticket assumido por <@{}>. Apenas ele e o dono do ticket têm acesso a essa sala agora.", staff_user_id))).await;
-            
+
         } else if component.data.custom_id == "fechar_ticket" {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
             use crate::database::tickets::TicketDb;
-            
+
             let channel_id = component.channel_id;
             let mut staff_id_assumed = None;
-            
+
             if let Ok(channel) = channel_id.to_channel(&ctx.http).await {
                 if let Some(guild_channel) = channel.guild() {
                     if let Some(topic) = guild_channel.topic {
@@ -324,7 +324,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                             if parts.len() > 1 {
                                 staff_id_assumed = Some(parts[1].to_string());
                             }
-                            
+
                             let mut owner_id = String::new();
                             if let Some(embed) = component.message.embeds.first() {
                                 if let Some(desc) = &embed.description {
@@ -335,7 +335,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                                     }
                                 }
                             }
-                            
+
                             let user_id_str = component.user.id.to_string();
                             if Some(user_id_str.clone()) != staff_id_assumed && user_id_str != owner_id {
                                 let _ = component.create_response(&ctx.http, CreateInteractionResponse::Message(
@@ -366,16 +366,15 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             }
 
             let logs_channel = TicketDb::get_config(&db_pool, "ticket_logs_channel", "").await;
-            
+
             let ctx_clone = ctx.clone();
             let staff_assumed_clone = staff_id_assumed.clone();
-            
-            // Try to get channel name for logs
+
             let channel_name = match channel_id.to_channel(&ctx.http).await {
                 Ok(serenity::model::channel::Channel::Guild(c)) => c.name,
                 _ => "desconhecido".to_string(),
             };
-            
+
             tokio::spawn(async move {
                 if let Ok(log_id) = logs_channel.parse::<u64>() {
                     let log_chan = serenity::model::id::ChannelId::new(log_id);
@@ -555,7 +554,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             use serenity::model::application::ComponentInteractionDataKind;
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage, CreateModal, CreateActionRow, CreateInputText};
             use serenity::model::application::InputTextStyle;
-            
+
             let selected_vip = match &component.data.kind {
                 ComponentInteractionDataKind::StringSelect { values } => values.first().cloned().unwrap_or_default(),
                 _ => return,
@@ -612,7 +611,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                         .components(vec![
                             CreateActionRow::InputText(CreateInputText::new(InputTextStyle::Short, "Duração (Ex: 10m, 2h, 1d) *", "blacklist_time").required(true)),
                         ]);
-                    
+
                     let _ = component.create_response(&ctx.http, CreateInteractionResponse::Modal(modal)).await;
                 } else {
                     let _ = component.create_response(&ctx.http, CreateInteractionResponse::Message(
@@ -623,17 +622,17 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
         } else if component.data.custom_id == "blacklist_remove_user" {
             use serenity::builder::{CreateInteractionResponse, CreateModal, CreateActionRow, CreateInputText};
             use serenity::model::application::InputTextStyle;
-            
+
             let msg_id = component.message.id.to_string();
             let modal = CreateModal::new(format!("modal_blacklist_remove_{}", msg_id), "Remover da Blacklist")
                 .components(vec![
                     CreateActionRow::InputText(CreateInputText::new(InputTextStyle::Short, "ID do Usuário", "blacklist_userid").placeholder("Ex: 123456789012345678").required(true)),
                 ]);
-            
+
             let _ = component.create_response(&ctx.http, CreateInteractionResponse::Modal(modal)).await;
         }
     } else if let Interaction::Modal(modal) = interaction {
-        // Tratar submissões de modais
+
         info!("Recebeu modal submetido: {}", modal.data.custom_id);
 
         let pool = {
@@ -688,7 +687,7 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                 let opt_reply = match &modal.data.components[4].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
 
                 let mut options = TicketDb::get_ticket_options(&pool).await;
-                options.retain(|o| o.id != opt_id); // prevent duplicates
+                options.retain(|o| o.id != opt_id);
                 options.push(TicketOption { id: opt_id, label: opt_label, description: opt_desc, emoji: opt_emoji, reply: opt_reply });
                 let new_json = serde_json::to_string(&options).unwrap_or_default();
                 let _ = TicketDb::set_config(&pool, "ticket_options", &new_json).await;
@@ -733,30 +732,30 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
             if modal.data.custom_id == "modal_config_vip_main" {
                 let main_desc = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let main_img = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
-                
+
                 VipDb::set_main_text(&pool, &main_desc, &main_img).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
-                
+
                 let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Textos do Painel VIP atualizados com sucesso!")).await;
             } else if modal.data.custom_id == "modal_config_vip_add_block" {
                 let block_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() }.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_");
                 let title = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let desc = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let color = match &modal.data.components[3].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_else(|| "#2F3136".to_string()), _ => "#2F3136".to_string() };
-                
+
                 VipDb::save_extra_block(&pool, block_id, title, desc, color).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
-                
+
                 let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Bloco Extra adicionado com sucesso!")).await;
             } else if modal.data.custom_id == "modal_config_vip_add_prod" {
                 let prod_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() }.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_");
                 let label = match &modal.data.components[1].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let price = match &modal.data.components[2].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
                 let role_id = match &modal.data.components[3].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
-                
+
                 VipDb::save_product(&pool, prod_id, label, price, role_id).await;
                 crate::commands::vip::painelvip::update_panel(&ctx).await;
-                
+
                 let _ = modal.edit_response(&ctx.http, EditInteractionResponse::new().content("✅ Produto VIP adicionado com sucesso!")).await;
             } else if modal.data.custom_id.starts_with("modal_config_vip_edit_block_") {
                 let opt_id = modal.data.custom_id.strip_prefix("modal_config_vip_edit_block_").unwrap();
@@ -811,15 +810,15 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
 
             let prods = VipDb::get_products(&pool).await;
             let product = prods.iter().find(|p| p.id == pacote);
-            
+
             if let Some(prod) = product {
                 if let Ok(valor) = prod.price.parse::<f64>() {
                     let mp_client = MercadoPagoClient::new();
-                    
+
                     match mp_client.create_pix_payment(valor, email, nome, cpf, format!("Pacote VIP {}", pacote)).await {
                         Ok(payment_info) => {
                             let _ = PaymentDb::add_payment(&pool, &payment_info.id.to_string(), &modal.user.id.to_string(), pacote).await;
-                            
+
                             if let Some(poi) = payment_info.point_of_interaction {
                                 let mut embed = CreateEmbed::new()
                                     .color(0x9b59b6)
@@ -865,14 +864,13 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
         } else if modal.data.custom_id.starts_with("modal_blacklist_add_") {
             use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
             use crate::database::blacklist::BlacklistDb;
-            
+
             let parts: Vec<&str> = modal.data.custom_id.split('_').collect();
             if parts.len() >= 5 {
                 let msg_id = parts[parts.len() - 1].to_string();
                 let target_user_id = parts[parts.len() - 2].to_string();
                 let time_str = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
 
-                // Simple parsing for time alias
                 let multiplier = if time_str.ends_with('m') {
                     1000 * 60
                 } else if time_str.ends_with('h') {
@@ -888,30 +886,29 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                     if multiplier > 0 {
                         let time_ms = num * multiplier;
                         let expires_at = chrono::Utc::now().timestamp_millis() + time_ms;
-                        
+
                         let guild_id = modal.guild_id.unwrap().get().to_string();
                         let channel_id = modal.channel_id.get().to_string();
-                        
+
                         let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new().ephemeral(true))).await;
-                        
+
                         if let Some(panel) = BlacklistDb::get_panel(&pool, &msg_id).await {
                             if let Ok(uid) = target_user_id.parse::<u64>() {
                                 let member = modal.guild_id.unwrap().member(&ctx.http, uid).await.unwrap();
                                 let role_id = serenity::model::id::RoleId::new(panel.role_id.parse::<u64>().unwrap_or(0));
                                 let _ = member.remove_role(&ctx.http, role_id).await;
                             }
-                            
+
                             let _ = BlacklistDb::add_user(&pool, &guild_id, &target_user_id, &panel.role_id, expires_at, &msg_id, &channel_id).await;
                             crate::commands::mod_cmds::blacklist::update_panel(&ctx, &pool, &msg_id).await;
-                            
-                            // Notifica o cron de blacklist para acordar
+
                             {
                                 let data = ctx.data.read().await;
                                 if let Some(notify) = data.get::<crate::BlacklistNotify>() {
                                     notify.notify_one();
                                 }
                             }
-                            
+
                             let _ = modal.edit_response(&ctx.http, serenity::builder::EditInteractionResponse::new().content(format!("✅ O usuário <@{}> foi colocado na blacklist por **{}**.", target_user_id, time_str))).await;
                         }
                     } else {
@@ -927,11 +924,11 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
 
             let msg_id = modal.data.custom_id.replace("modal_blacklist_remove_", "");
             let target_user_id = match &modal.data.components[0].components[0] { serenity::model::application::ActionRowComponent::InputText(i) => i.value.clone().unwrap_or_default(), _ => String::new() };
-            
+
             let guild_id = modal.guild_id.unwrap().get().to_string();
-            
+
             let _ = modal.create_response(&ctx.http, CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new().ephemeral(true))).await;
-            
+
             if let Some(panel) = BlacklistDb::get_panel(&pool, &msg_id).await {
                 let users = BlacklistDb::get_users_for_panel(&pool, &msg_id).await;
                 if users.iter().any(|u| u.user_id == target_user_id) {
@@ -941,10 +938,10 @@ pub async fn handle(ctx: Context, interaction: Interaction) {
                             let _ = member.add_role(&ctx.http, role_id).await;
                         }
                     }
-                    
+
                     let _ = BlacklistDb::remove_user(&pool, &guild_id, &target_user_id).await;
                     crate::commands::mod_cmds::blacklist::update_panel(&ctx, &pool, &msg_id).await;
-                    
+
                     let _ = modal.edit_response(&ctx.http, serenity::builder::EditInteractionResponse::new().content(format!("✅ O usuário <@{}> foi removido da blacklist com sucesso!", target_user_id))).await;
                 } else {
                     let _ = modal.edit_response(&ctx.http, serenity::builder::EditInteractionResponse::new().content("❌ Esse usuário não está na blacklist deste painel.")).await;

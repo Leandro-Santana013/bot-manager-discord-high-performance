@@ -15,7 +15,7 @@ pub fn register() -> CreateCommand {
 pub async fn run(ctx: &Context, interaction: &serenity::model::application::CommandInteraction) {
     let data = ctx.data.read().await;
     let db_pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized");
-    
+
     let title = TicketDb::get_config(db_pool, "panel_title", "Central de Ajuda").await;
     let desc = TicketDb::get_config(db_pool, "panel_description", "Nessa seção, você pode tirar suas dúvidas ou entrar em contato com a nossa equipe de Suporte.\n\nPara evitar problemas, leia as opções com atenção e selecione o motivo do seu contato no menu abaixo.").await;
     let img = TicketDb::get_config(db_pool, "panel_image", "").await;
@@ -35,11 +35,11 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     for opt in options {
         let mut menu_opt = CreateSelectMenuOption::new(opt.label, opt.id)
             .description(opt.description);
-        
+
         if let Ok(emoji) = opt.emoji.parse::<ReactionType>() {
             menu_opt = menu_opt.emoji(emoji);
         }
-        
+
         select_options.push(menu_opt);
     }
 
@@ -76,7 +76,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 pub async fn run_message(ctx: &Context, msg: &Message) {
     let data = ctx.data.read().await;
     let db_pool = data.get::<crate::DatabasePool>().expect("DB pool not initialized");
-    
+
     let title = TicketDb::get_config(db_pool, "panel_title", "Central de Ajuda").await;
     let desc = TicketDb::get_config(db_pool, "panel_description", "Nessa seção, você pode tirar suas dúvidas ou entrar em contato com a nossa equipe de Suporte.\n\nPara evitar problemas, leia as opções com atenção e selecione o motivo do seu contato no menu abaixo.").await;
     let img = TicketDb::get_config(db_pool, "panel_image", "").await;
@@ -96,11 +96,11 @@ pub async fn run_message(ctx: &Context, msg: &Message) {
     for opt in options {
         let mut menu_opt = CreateSelectMenuOption::new(opt.label, opt.id)
             .description(opt.description);
-        
+
         if let Ok(emoji) = opt.emoji.parse::<ReactionType>() {
             menu_opt = menu_opt.emoji(emoji);
         }
-        
+
         select_options.push(menu_opt);
     }
 

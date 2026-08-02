@@ -37,7 +37,7 @@ impl TicketDb {
         match sqlx::query_as::<_, (String,)>(q)
             .bind(key)
             .fetch_optional(pool)
-            .await 
+            .await
         {
             Ok(Some((valor,))) => valor,
             _ => default_value.to_string(),
@@ -80,7 +80,6 @@ impl TicketDb {
             }
         }
 
-        // Defaults se não existir no banco
         vec![
             TicketOption {
                 id: "denuncia".to_string(),

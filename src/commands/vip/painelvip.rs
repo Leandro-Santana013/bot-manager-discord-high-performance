@@ -12,7 +12,6 @@ pub fn register() -> CreateCommand {
 pub async fn build_vip_message(pool: &sqlx::PgPool) -> (Vec<CreateEmbed>, Vec<CreateActionRow>) {
     let mut embeds = vec![];
 
-    // Extra Blocks
     let extra_blocks = VipDb::get_extra_blocks(pool).await;
     for block in extra_blocks {
         let color_hex = block.color.trim_start_matches('#');
@@ -25,7 +24,6 @@ pub async fn build_vip_message(pool: &sqlx::PgPool) -> (Vec<CreateEmbed>, Vec<Cr
         embeds.push(embed);
     }
 
-    // Main Embed
     let main_text = VipDb::get_main_text(pool).await;
     let main_image = VipDb::get_main_image(pool).await;
 
@@ -38,7 +36,6 @@ pub async fn build_vip_message(pool: &sqlx::PgPool) -> (Vec<CreateEmbed>, Vec<Cr
     }
     embeds.push(main_embed);
 
-    // Products Menu
     let prods = VipDb::get_products(pool).await;
     let mut select_options = vec![];
 
@@ -49,7 +46,6 @@ pub async fn build_vip_message(pool: &sqlx::PgPool) -> (Vec<CreateEmbed>, Vec<Cr
         ));
     }
 
-    // Add Balance Option
     select_options.push(CreateSelectMenuOption::new("Adicionar saldo", "vip_add_saldo"));
 
     let select_menu = CreateSelectMenu::new("menu_vip", CreateSelectMenuKind::String { options: select_options })
@@ -75,7 +71,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     match interaction.channel_id.send_message(&ctx.http, response).await {
         Ok(msg) => {
             VipDb::set_panel_message(&pool, &msg.channel_id.to_string(), &msg.id.to_string()).await;
-            
+
             let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
                 CreateInteractionResponseMessage::new().content("✅ Painel VIP enviado com sucesso!").ephemeral(true)
             )).await;
@@ -104,7 +100,7 @@ pub async fn update_panel(ctx: &Context) {
     if let (Ok(channel_id), Ok(message_id)) = (channel_id_str.parse::<u64>(), message_id_str.parse::<u64>()) {
         let (embeds, components) = build_vip_message(&pool).await;
         let edit_msg = EditMessage::new().embeds(embeds).components(components);
-        
+
         let _ = ctx.http.edit_message(serenity::model::id::ChannelId::new(channel_id), serenity::model::id::MessageId::new(message_id), &edit_msg, vec![]).await;
     }
 }

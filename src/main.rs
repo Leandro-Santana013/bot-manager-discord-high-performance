@@ -8,7 +8,6 @@ use tokio::sync::RwLock;
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-
 mod database;
 mod events;
 mod cron;
@@ -74,17 +73,15 @@ impl serenity::prelude::TypeMapKey for HttpClient {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
 
-    // Carrega .env
     dotenvy::dotenv().ok();
-    
+
     let token = std::env::var("DISCORD_TOKEN").expect("A variável DISCORD_TOKEN não foi encontrada no .env");
-    
-    let intents = GatewayIntents::GUILDS 
-        | GatewayIntents::GUILD_VOICE_STATES 
-        | GatewayIntents::GUILD_MESSAGES 
+
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_VOICE_STATES
+        | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    // Inicializa Banco de Dados
     let db_url = std::env::var("DATABASE_URL").expect("A variável DATABASE_URL é obrigatória para o PostgreSQL");
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -92,15 +89,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     tracing::info!("Banco de dados PostgreSQL conectado com sucesso.");
-    
-    // Inicia tabelas
+
     crate::database::voice::VoiceDb::init(&pool).await;
     crate::database::tickets::TicketDb::init(&pool).await;
     crate::database::vip::VipDb::init(&pool).await;
     crate::database::payments::PaymentDb::init(&pool).await;
     crate::database::blacklist::BlacklistDb::init(&pool).await;
 
-    // Carregar cache do automod
     let raw_list = crate::database::tickets::TicketDb::get_config(&pool, "automod_words", "[]").await;
     let automod_words: Vec<String> = serde_json::from_str(&raw_list).unwrap_or_default();
     let automod_cache = Arc::new(RwLock::new(automod_words));

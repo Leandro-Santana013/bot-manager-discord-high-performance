@@ -43,10 +43,10 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                             palavra = s.to_lowercase();
                         }
                     }
-                    
+
                     let raw_list = TicketDb::get_config(&pool, "automod_words", "[]").await;
                     let mut words: Vec<String> = serde_json::from_str(&raw_list).unwrap_or_else(|_| vec![]);
-                    
+
                     if words.contains(&palavra) {
                         let _ = interaction.create_response(&ctx.http, CreateInteractionResponse::Message(
                             CreateInteractionResponseMessage::new().content(format!("⚠️ A palavra `{}` já está no filtro.", palavra)).ephemeral(true)
@@ -58,7 +58,6 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                     let new_raw = serde_json::to_string(&words).unwrap();
                     let _ = TicketDb::set_config(&pool, "automod_words", &new_raw).await;
 
-                    // Atualizar cache em memória
                     if let Some(cache) = data.get::<crate::AutomodCache>() {
                         *cache.write().await = words;
                     }
@@ -74,16 +73,15 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
                             palavra = s.to_lowercase();
                         }
                     }
-                    
+
                     let raw_list = TicketDb::get_config(&pool, "automod_words", "[]").await;
                     let mut words: Vec<String> = serde_json::from_str(&raw_list).unwrap_or_else(|_| vec![]);
-                    
+
                     if let Some(pos) = words.iter().position(|x| *x == palavra) {
                         words.remove(pos);
                         let new_raw = serde_json::to_string(&words).unwrap();
                         let _ = TicketDb::set_config(&pool, "automod_words", &new_raw).await;
 
-                        // Atualizar cache em memória
                         if let Some(cache) = data.get::<crate::AutomodCache>() {
                             *cache.write().await = words.clone();
                         }

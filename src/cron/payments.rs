@@ -9,8 +9,7 @@ use crate::cron::mercado_pago::MercadoPagoClient;
 
 pub async fn start(ctx: Arc<Context>) {
     let mp_client = MercadoPagoClient::new();
-    
-    // Loop de monitoramento do Mercado Pago a cada 1 minuto (60 segundos)
+
     loop {
         sleep(Duration::from_secs(60)).await;
 
@@ -42,21 +41,19 @@ pub async fn start(ctx: Arc<Context>) {
                 Ok(status) => {
                     if status == "approved" {
                         info!("Pagamento aprovado: {} para usuário {}", payment_id, user_id_str);
-                        
+
                         let _ = PaymentDb::remove_payment(&pool, &payment_id).await;
 
                         if let Ok(user_id) = user_id_str.parse::<u64>() {
                             let role_id_str = prods.iter().find(|p| p.id == package_id).map(|p| p.role_id.clone()).unwrap_or_default();
                             if let Ok(role_id) = role_id_str.parse::<u64>() {
-                                // Temos que iterar nas guildas ou assumir a guild_id do .env
-                                // Para simplificar, assumimos que há 1 guild_id ou pegamos do cache
+
                                 let guilds = ctx.cache.guilds();
                                 for guild_id in guilds {
                                     let http = ctx.http.clone();
                                     if let Ok(member) = guild_id.member(&http, user_id).await {
                                         let _ = member.add_role(&http, role_id).await;
-                                        
-                                        // Enviar DM de sucesso
+
                                         if let Ok(user) = serenity::model::id::UserId::new(user_id).to_user(&http).await {
                                             let embed = serenity::builder::CreateEmbed::new()
                                                 .title("✅ Pagamento Aprovado!")
