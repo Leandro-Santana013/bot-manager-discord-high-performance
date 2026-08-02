@@ -50,6 +50,15 @@ impl VoiceDb {
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo TYPE BIGINT").execute(pool).await;
         let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo_mutado TYPE BIGINT").execute(pool).await;
 
+        // Corrige e sincroniza a sequência do SERIAL (sessoes_voz_id_seq) com o maior ID existente
+        let _ = sqlx::query("
+            SELECT setval(
+                pg_get_serial_sequence('sessoes_voz', 'id'),
+                COALESCE((SELECT MAX(id) FROM sessoes_voz), 0) + 1,
+                false
+            )
+        ").execute(pool).await;
+
         // Sincroniza o tempo_total de todos os usuários a partir da soma de sessoes_voz
         Self::sync_all_users(pool).await;
     }
