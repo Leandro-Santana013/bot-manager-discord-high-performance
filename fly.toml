@@ -3,6 +3,6 @@ app = 'bot-manager-discord-high-performance'
 primary_region = 'gru'
 
 [[vm]]
-  memory = '512mb'
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
