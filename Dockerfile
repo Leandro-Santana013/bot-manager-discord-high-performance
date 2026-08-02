@@ -20,7 +20,4 @@ RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/
 COPY --from=builder /usr/src/app/target/release/bot-rust /app/bot-rust
 COPY --from=builder /usr/src/app/assets /app/assets
 
-ENV PORT=8080
-EXPOSE 8080
-
 CMD ["/app/bot-rust"]

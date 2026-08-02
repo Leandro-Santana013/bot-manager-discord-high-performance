@@ -73,16 +73,6 @@ impl serenity::prelude::TypeMapKey for HttpClient {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
-    
-    // Inicia o servidor web (Fly.io / Render / Port Scanner) IMEDIATAMENTE
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port);
-    tracing::info!("Ligando servidor Anti-Sleep em {}...", addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    tokio::spawn(async move {
-        let app = axum::Router::new().route("/", axum::routing::get(|| async { "O bot está online! 🦀" }));
-        let _ = axum::serve(listener, app).await;
-    });
 
     // Carrega .env
     dotenvy::dotenv().ok();
