@@ -28,8 +28,8 @@ impl VoiceDb {
         let q2 = "CREATE TABLE IF NOT EXISTS sessoes_voz (
             id SERIAL PRIMARY KEY,
             id_usuario TEXT,
-            tempo INTEGER,
-            tempo_mutado INTEGER DEFAULT 0,
+            tempo BIGINT,
+            tempo_mutado BIGINT DEFAULT 0,
             data_sessao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )";
 
@@ -45,8 +45,10 @@ impl VoiceDb {
         let _ = sqlx::query(q_index1).execute(pool).await;
         let _ = sqlx::query(q_index2).execute(pool).await;
 
-        // Tenta adicionar coluna se não existir, engolindo erro
-        let _ = sqlx::query("ALTER TABLE sessoes_voz ADD COLUMN tempo_mutado INTEGER DEFAULT 0").execute(pool).await;
+        // Migração segura para colunas e tipos BIGINT no PostgreSQL
+        let _ = sqlx::query("ALTER TABLE sessoes_voz ADD COLUMN IF NOT EXISTS tempo_mutado BIGINT DEFAULT 0").execute(pool).await;
+        let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo TYPE BIGINT").execute(pool).await;
+        let _ = sqlx::query("ALTER TABLE sessoes_voz ALTER COLUMN tempo_mutado TYPE BIGINT").execute(pool).await;
     }
 
     pub async fn update_user_time(pool: &PgPool, user_id: &str, time_spent: i64, mute_time_spent: i64) -> Result<(), sqlx::Error> {
@@ -79,17 +81,17 @@ impl VoiceDb {
             .fetch_one(pool).await;
         let rank: i64 = rank_row.map(|r| r.get::<i64, _>("rank")).unwrap_or(0) + 1;
 
-        let this_week_row = sqlx::query("SELECT SUM(tempo) as total, SUM(tempo_mutado) as totalMutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '7 days'")
+        let this_week_row = sqlx::query("SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total, CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '7 days'")
             .bind(user_id)
             .fetch_optional(pool).await.unwrap_or(None);
         let this_week_ms: i64 = this_week_row.as_ref().map(|r| r.try_get("total").unwrap_or(0)).unwrap_or(0);
-        let this_week_muted_ms: i64 = this_week_row.as_ref().map(|r| r.try_get("totalMutado").unwrap_or(0)).unwrap_or(0);
+        let this_week_muted_ms: i64 = this_week_row.as_ref().map(|r| r.try_get("total_mutado").unwrap_or(0)).unwrap_or(0);
 
-        let last_week_row = sqlx::query("SELECT SUM(tempo) as total, SUM(tempo_mutado) as totalMutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '14 days' AND data_sessao < NOW() - INTERVAL '7 days'")
+        let last_week_row = sqlx::query("SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total, CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '14 days' AND data_sessao < NOW() - INTERVAL '7 days'")
             .bind(user_id)
             .fetch_optional(pool).await.unwrap_or(None);
         let last_week_ms: i64 = last_week_row.as_ref().map(|r| r.try_get("total").unwrap_or(0)).unwrap_or(0);
-        let last_week_muted_ms: i64 = last_week_row.as_ref().map(|r| r.try_get("totalMutado").unwrap_or(0)).unwrap_or(0);
+        let last_week_muted_ms: i64 = last_week_row.as_ref().map(|r| r.try_get("total_mutado").unwrap_or(0)).unwrap_or(0);
 
         UserVoiceStats {
             total_ms,

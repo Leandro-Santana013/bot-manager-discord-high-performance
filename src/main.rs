@@ -9,7 +9,6 @@ use tokio::sync::RwLock;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
-mod server;
 mod database;
 mod events;
 mod cron;
@@ -75,8 +74,8 @@ impl serenity::prelude::TypeMapKey for HttpClient {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
     
-    // Inicia o servidor web na mesma hora pra satisfazer o Render (Port Scanner) IMEDIATAMENTE
-    let port = std::env::var("PORT").unwrap_or_else(|_| "10000".to_string());
+    // Inicia o servidor web (Fly.io / Render / Port Scanner) IMEDIATAMENTE
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Ligando servidor Anti-Sleep em {}...", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
