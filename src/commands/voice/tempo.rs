@@ -103,7 +103,7 @@ struct MetaBannerInfo {
     text_color: Rgba<u8>,
 }
 
-async fn compute_meta_banner(pool: &sqlx::PgPool, member_roles: &[serenity::model::id::RoleId], this_week_ms: i64) -> MetaBannerInfo {
+async fn compute_meta_banner(ctx: &Context, guild_id: Option<serenity::model::id::GuildId>, pool: &sqlx::PgPool, member_roles: &[serenity::model::id::RoleId], this_week_ms: i64) -> MetaBannerInfo {
     let metas = [
         ("god", 50.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_god", "").await),
         ("ace", 45.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_ace", "").await),
@@ -115,15 +115,35 @@ async fn compute_meta_banner(pool: &sqlx::PgPool, member_roles: &[serenity::mode
         ("base", 15.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_base", "").await),
     ];
 
-    for (nome, horas_meta, role_id_str) in metas {
+    for (_nome, horas_meta, role_id_str) in metas {
         if role_id_str.is_empty() { continue; }
         if let Ok(role_u64) = role_id_str.parse::<u64>() {
-            if member_roles.contains(&serenity::model::id::RoleId::new(role_u64)) {
+            let role_id = serenity::model::id::RoleId::new(role_u64);
+            if member_roles.contains(&role_id) {
+                let role_name = if let Some(gid) = guild_id {
+                    if let Some(guild) = ctx.cache.guild(gid) {
+                        guild.roles.get(&role_id).map(|r| r.name.clone())
+                    } else if let Ok(roles) = gid.roles(&ctx.http).await {
+                        roles.get(&role_id).map(|r| r.name.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let role_display = role_name.unwrap_or_else(|| "o cargo".to_string());
+                let role_label = if role_display.chars().count() > 18 {
+                    format!("{}...", role_display.chars().take(15).collect::<String>())
+                } else {
+                    role_display
+                };
+
                 let req_ms = (horas_meta * 3600.0 * 1000.0) as i64;
                 let horas_feitas = (this_week_ms as f64) / (1000.0 * 3600.0);
                 if this_week_ms >= req_ms {
                     return MetaBannerInfo {
-                        text: format!("Tempo para manter {}: Meta alcançada! ({:.1}h / {}h)", nome.to_uppercase(), horas_feitas, horas_meta as i64),
+                        text: format!("Tempo para manter {}: Meta alcançada! ({:.1}h / {}h)", role_label, horas_feitas, horas_meta as i64),
                         bg_color: hex_to_rgba("#0d2e14"),
                         border_color: hex_to_rgba("#1b6630"),
                         text_color: hex_to_rgba("#2ecc71"),
@@ -133,7 +153,7 @@ async fn compute_meta_banner(pool: &sqlx::PgPool, member_roles: &[serenity::mode
                     let diff_h = diff_ms / (1000 * 3600);
                     let diff_m = (diff_ms / (1000 * 60)) % 60;
                     return MetaBannerInfo {
-                        text: format!("Tempo para manter {}: Faltam {}h {}m ({:.1}h / {}h)", nome.to_uppercase(), diff_h, diff_m, horas_feitas, horas_meta as i64),
+                        text: format!("Tempo para manter {}: Faltam {}h {}m ({:.1}h / {}h)", role_label, diff_h, diff_m, horas_feitas, horas_meta as i64),
                         bg_color: hex_to_rgba("#330000"),
                         border_color: hex_to_rgba("#880000"),
                         text_color: hex_to_rgba("#ff4444"),
@@ -395,7 +415,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     } else {
         vec![]
     };
-    let meta_banner = compute_meta_banner(&pool, &member_roles, stats.this_week_ms).await;
+    let meta_banner = compute_meta_banner(ctx, interaction.guild_id, &pool, &member_roles, stats.this_week_ms).await;
 
     let banner_w = 640;
     let banner_h = 40;
@@ -578,7 +598,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     } else {
         vec![]
     };
-    let meta_banner = compute_meta_banner(&pool, &member_roles, stats.this_week_ms).await;
+    let meta_banner = compute_meta_banner(ctx, msg.guild_id, &pool, &member_roles, stats.this_week_ms).await;
 
     let banner_w = 640;
     let banner_h = 40;
