@@ -78,12 +78,24 @@ fn ms_to_time(ms: i64) -> String {
     format!("{}h {}m {}s", hours, minutes, seconds)
 }
 
-fn get_week_string(offset_start: i64, offset_end: i64) -> String {
-    use chrono::{Duration, Utc, Datelike};
-    let start = Utc::now() - Duration::days(offset_start);
-    let end = Utc::now() - Duration::days(offset_end);
-    format!("({:02}/{:02} - {:02}/{:02})", start.day(), start.month(), end.day(), end.month())
+fn get_week_strings() -> (String, String) {
+    use chrono::{Utc, Datelike, Duration, FixedOffset};
+    let br_tz = FixedOffset::east_opt(-3 * 3600).unwrap_or(FixedOffset::east_opt(0).unwrap());
+    let now_br = Utc::now().with_timezone(&br_tz);
+    let days_from_monday = now_br.weekday().num_days_from_monday() as i64;
+
+    let monday_this_week = now_br.date_naive() - Duration::days(days_from_monday);
+    let sunday_this_week = monday_this_week + Duration::days(6);
+
+    let monday_last_week = monday_this_week - Duration::days(7);
+    let sunday_last_week = monday_last_week + Duration::days(6);
+
+    let this_week_str = format!("({:02}/{:02} - {:02}/{:02})", monday_this_week.day(), monday_this_week.month(), sunday_this_week.day(), sunday_this_week.month());
+    let last_week_str = format!("({:02}/{:02} - {:02}/{:02})", monday_last_week.day(), monday_last_week.month(), sunday_last_week.day(), sunday_last_week.month());
+
+    (this_week_str, last_week_str)
 }
+
 
 fn draw_aa_circle_icon(image: &mut RgbaImage, cx: i32, cy: i32, radius: f32, thickness: f32, color: Rgba<u8>) {
     let r_outer = radius + thickness / 2.0;
@@ -283,8 +295,7 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     let col1_x = 0;
     let col2_x = col_w;
 
-    let week1_str = get_week_string(7, 0);
-    let week2_str = get_week_string(14, 7);
+    let (week1_str, week2_str) = get_week_strings();
 
     let draw_centered = |img: &mut RgbaImage, x_center: i32, y: i32, scale: Scale, font: &Font, text: &str, color: Rgba<u8>| {
         let w = font.layout(text, scale, rusttype::Point { x: 0.0, y: 0.0 }).last().map(|g| g.position().x + g.unpositioned().h_metrics().advance_width).unwrap_or(0.0) as i32;
@@ -461,8 +472,7 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let col1_x = 0;
     let col2_x = col_w;
 
-    let week1_str = get_week_string(7, 0);
-    let week2_str = get_week_string(14, 7);
+    let (week1_str, week2_str) = get_week_strings();
 
     let draw_centered = |img: &mut RgbaImage, x_center: i32, y: i32, scale: Scale, font: &Font, text: &str, color: Rgba<u8>| {
         let w = font.layout(text, scale, rusttype::Point { x: 0.0, y: 0.0 }).last().map(|g| g.position().x + g.unpositioned().h_metrics().advance_width).unwrap_or(0.0) as i32;

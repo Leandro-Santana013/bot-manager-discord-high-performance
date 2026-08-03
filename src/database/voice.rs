@@ -108,13 +108,26 @@ impl VoiceDb {
             .fetch_one(pool).await;
         let rank: i64 = rank_row.map(|r| r.get::<i64, _>("rank")).unwrap_or(0) + 1;
 
-        let this_week_row = sqlx::query("SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total, CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '7 days'")
+        let this_week_row = sqlx::query("
+            SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total,
+                   CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado
+            FROM sessoes_voz
+            WHERE id_usuario = $1
+              AND data_sessao >= date_trunc('week', NOW() - INTERVAL '3 hours') + INTERVAL '3 hours'
+        ")
             .bind(user_id)
             .fetch_optional(pool).await.unwrap_or(None);
         let this_week_ms: i64 = this_week_row.as_ref().map(|r| r.try_get("total").unwrap_or(0)).unwrap_or(0);
         let this_week_muted_ms: i64 = this_week_row.as_ref().map(|r| r.try_get("total_mutado").unwrap_or(0)).unwrap_or(0);
 
-        let last_week_row = sqlx::query("SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total, CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado FROM sessoes_voz WHERE id_usuario = $1 AND data_sessao >= NOW() - INTERVAL '14 days' AND data_sessao < NOW() - INTERVAL '7 days'")
+        let last_week_row = sqlx::query("
+            SELECT CAST(COALESCE(SUM(tempo), 0) AS BIGINT) as total,
+                   CAST(COALESCE(SUM(tempo_mutado), 0) AS BIGINT) as total_mutado
+            FROM sessoes_voz
+            WHERE id_usuario = $1
+              AND data_sessao >= date_trunc('week', NOW() - INTERVAL '3 hours') - INTERVAL '7 days' + INTERVAL '3 hours'
+              AND data_sessao < date_trunc('week', NOW() - INTERVAL '3 hours') + INTERVAL '3 hours'
+        ")
             .bind(user_id)
             .fetch_optional(pool).await.unwrap_or(None);
         let last_week_ms: i64 = last_week_row.as_ref().map(|r| r.try_get("total").unwrap_or(0)).unwrap_or(0);
@@ -146,7 +159,9 @@ impl VoiceDb {
     pub async fn get_all_users_closing_stats(pool: &PgPool) -> Vec<UserClosingStats> {
         let rows = sqlx::query("
             SELECT u.id_usuario,
-                   COALESCE(SUM(CASE WHEN s.data_sessao >= NOW() - INTERVAL '7 days' THEN s.tempo ELSE 0 END), 0)::BIGINT as week_ms,
+                   COALESCE(SUM(CASE WHEN s.data_sessao >= date_trunc('week', NOW() - INTERVAL '3 hours') - INTERVAL '7 days' + INTERVAL '3 hours'
+                                      AND s.data_sessao < date_trunc('week', NOW() - INTERVAL '3 hours') + INTERVAL '3 hours'
+                                     THEN s.tempo ELSE 0 END), 0)::BIGINT as week_ms,
                    COALESCE(EXTRACT(DAY FROM (NOW() - MAX(s.data_sessao)))::INTEGER, 999) as inactive_days
             FROM usuarios u
             LEFT JOIN sessoes_voz s ON s.id_usuario = u.id_usuario
