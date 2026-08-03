@@ -96,6 +96,62 @@ fn get_week_strings() -> (String, String) {
     (this_week_str, last_week_str)
 }
 
+struct MetaBannerInfo {
+    text: String,
+    bg_color: Rgba<u8>,
+    border_color: Rgba<u8>,
+    text_color: Rgba<u8>,
+}
+
+async fn compute_meta_banner(pool: &sqlx::PgPool, member_roles: &[serenity::model::id::RoleId], this_week_ms: i64) -> MetaBannerInfo {
+    let metas = [
+        ("god", 50.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_god", "").await),
+        ("ace", 45.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_ace", "").await),
+        ("cry", 40.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_cry", "").await),
+        ("high", 35.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_high", "").await),
+        ("1st", 30.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_1st", "").await),
+        ("2nd", 25.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_2nd", "").await),
+        ("sub", 20.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_sub", "").await),
+        ("base", 15.0, crate::database::tickets::TicketDb::get_config(pool, "meta_role_base", "").await),
+    ];
+
+    for (nome, horas_meta, role_id_str) in metas {
+        if role_id_str.is_empty() { continue; }
+        if let Ok(role_u64) = role_id_str.parse::<u64>() {
+            if member_roles.contains(&serenity::model::id::RoleId::new(role_u64)) {
+                let req_ms = (horas_meta * 3600.0 * 1000.0) as i64;
+                let horas_feitas = (this_week_ms as f64) / (1000.0 * 3600.0);
+                if this_week_ms >= req_ms {
+                    return MetaBannerInfo {
+                        text: format!("Tempo para manter {}: Meta alcançada! ({:.1}h / {}h)", nome.to_uppercase(), horas_feitas, horas_meta as i64),
+                        bg_color: hex_to_rgba("#0d2e14"),
+                        border_color: hex_to_rgba("#1b6630"),
+                        text_color: hex_to_rgba("#2ecc71"),
+                    };
+                } else {
+                    let diff_ms = req_ms.saturating_sub(this_week_ms);
+                    let diff_h = diff_ms / (1000 * 3600);
+                    let diff_m = (diff_ms / (1000 * 60)) % 60;
+                    return MetaBannerInfo {
+                        text: format!("Tempo para manter {}: Faltam {}h {}m ({:.1}h / {}h)", nome.to_uppercase(), diff_h, diff_m, horas_feitas, horas_meta as i64),
+                        bg_color: hex_to_rgba("#330000"),
+                        border_color: hex_to_rgba("#880000"),
+                        text_color: hex_to_rgba("#ff4444"),
+                    };
+                }
+            }
+        }
+    }
+
+    MetaBannerInfo {
+        text: "Tempo acumulado nesta semana (Sem meta de cargo ativa)".to_string(),
+        bg_color: hex_to_rgba("#1c1d22"),
+        border_color: hex_to_rgba("#383a40"),
+        text_color: hex_to_rgba("#aaaaaa"),
+    }
+}
+
+
 
 fn draw_aa_circle_icon(image: &mut RgbaImage, cx: i32, cy: i32, radius: f32, thickness: f32, color: Rgba<u8>) {
     let r_outer = radius + thickness / 2.0;
@@ -185,10 +241,11 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
 
     let user_id_str = target_user.id.to_string();
 
-    let mut stats = {
+    let (mut stats, pool) = {
         let data = ctx.data.read().await;
         let Some(pool) = data.get::<crate::DatabasePool>().cloned() else { return; };
-        crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await
+        let s = crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await;
+        (s, pool)
     };
 
     {
@@ -333,23 +390,29 @@ pub async fn run(ctx: &Context, interaction: &serenity::model::application::Comm
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col2_x + 103, box_y2 + 20, Scale::uniform(26.0), &font_bold, &ms_to_time(stats.last_week_muted_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col2_x + 105, box_y2 + 52, Scale::uniform(16.0), &font, "Tempo que passou mutado.");
 
-    let banner_w = 600;
+    let member_roles = if let Some(guild_id) = interaction.guild_id {
+        guild_id.member(&ctx.http, target_user.id).await.map(|m| m.roles).unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let meta_banner = compute_meta_banner(&pool, &member_roles, stats.this_week_ms).await;
+
+    let banner_w = 640;
     let banner_h = 40;
     let banner_x = (canvas_w - banner_w) / 2;
     let banner_y = canvas_h - 60;
 
-    draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, hex_to_rgba("#330000"), Some(hex_to_rgba("#880000")));
+    draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, meta_banner.bg_color, Some(meta_banner.border_color));
 
     let icon_x = banner_x + 25;
     let icon_y = banner_y + banner_h / 2;
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 7, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 3, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 2, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 1, hex_to_rgba("#ff4444"));
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 7, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 3, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 2, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 1, meta_banner.text_color);
 
-    let banner_text = "Tempo para se manter no cargo: Meta do cargo alcançada!";
-    draw_centered(&mut image, canvas_w / 2, banner_y + 10, Scale::uniform(18.0), &font_bold, banner_text, hex_to_rgba("#ff4444"));
+    draw_centered(&mut image, canvas_w / 2, banner_y + 10, Scale::uniform(16.0), &font_bold, &meta_banner.text, meta_banner.text_color);
 
     let mut buffer = Cursor::new(Vec::new());
     let encoder = image::codecs::png::PngEncoder::new_with_quality(
@@ -374,10 +437,11 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     let target_user = msg.mentions.first().unwrap_or(&msg.author).clone();
     let user_id_str = target_user.id.to_string();
 
-    let mut stats = {
+    let (mut stats, pool) = {
         let data = ctx.data.read().await;
         let Some(pool) = data.get::<crate::DatabasePool>().cloned() else { return; };
-        crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await
+        let s = crate::database::voice::VoiceDb::get_user_stats(&pool, &user_id_str).await;
+        (s, pool)
     };
 
     {
@@ -509,23 +573,29 @@ pub async fn run_message(ctx: &Context, msg: &serenity::model::channel::Message)
     draw_text_mut(&mut image, hex_to_rgba("#ffffff"), col2_x + 105, box_y2 + 35, Scale::uniform(22.0), &font_bold, &ms_to_time(stats.last_week_muted_ms));
     draw_text_mut(&mut image, hex_to_rgba("#888888"), col2_x + 105, box_y2 + 60, Scale::uniform(14.0), &font, "Tempo que passou mutado.");
 
-    let banner_w = 600;
+    let member_roles = if let Some(guild_id) = msg.guild_id {
+        guild_id.member(&ctx.http, target_user.id).await.map(|m| m.roles).unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let meta_banner = compute_meta_banner(&pool, &member_roles, stats.this_week_ms).await;
+
+    let banner_w = 640;
     let banner_h = 40;
     let banner_x = (canvas_w - banner_w) / 2;
     let banner_y = canvas_h - 60;
 
-    draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, hex_to_rgba("#330000"), Some(hex_to_rgba("#880000")));
+    draw_rounded_rect(&mut image, banner_x, banner_y, banner_w, banner_h, 20, meta_banner.bg_color, Some(meta_banner.border_color));
 
     let icon_x = banner_x + 25;
     let icon_y = banner_y + banner_h / 2;
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 7, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 3, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 2, hex_to_rgba("#ff4444"));
-    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 1, hex_to_rgba("#ff4444"));
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 8, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 7, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 3, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 2, meta_banner.text_color);
+    draw_hollow_circle_mut(&mut image, (icon_x, icon_y), 1, meta_banner.text_color);
 
-    let banner_text = "Tempo para se manter no cargo: Meta do cargo alcançada!";
-    draw_text_mut(&mut image, hex_to_rgba("#ff4444"), canvas_w / 2 - 220, banner_y + 10, Scale::uniform(18.0), &font_bold, banner_text);
+    draw_centered(&mut image, canvas_w / 2, banner_y + 10, Scale::uniform(16.0), &font_bold, &meta_banner.text, meta_banner.text_color);
 
     let mut buffer = Cursor::new(Vec::new());
     if image.write_to(&mut buffer, image::ImageFormat::Png).is_ok() {
