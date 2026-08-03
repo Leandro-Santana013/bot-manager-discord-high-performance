@@ -121,8 +121,9 @@ async fn compute_meta_banner(ctx: &Context, guild_id: Option<serenity::model::id
             let role_id = serenity::model::id::RoleId::new(role_u64);
             if member_roles.contains(&role_id) {
                 let role_name = if let Some(gid) = guild_id {
-                    if let Some(guild) = ctx.cache.guild(gid) {
-                        guild.roles.get(&role_id).map(|r| r.name.clone())
+                    let from_cache = ctx.cache.guild(gid).and_then(|g| g.roles.get(&role_id).map(|r| r.name.clone()));
+                    if from_cache.is_some() {
+                        from_cache
                     } else if let Ok(roles) = gid.roles(&ctx.http).await {
                         roles.get(&role_id).map(|r| r.name.clone())
                     } else {
